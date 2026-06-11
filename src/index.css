@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  color: #15171c;
+  /* Soft Structuralism: silver-grey field with diffused overhead light */
+  background-color: #e7eaef;
+  background-image:
+    radial-gradient(120% 80% at 50% -10%, #fbfcfe 0%, rgba(251, 252, 254, 0) 46%),
+    radial-gradient(80% 60% at 88% 8%, rgba(31, 169, 113, 0.07) 0%, rgba(31, 169, 113, 0) 55%),
+    radial-gradient(70% 60% at 6% 96%, rgba(120, 134, 158, 0.12) 0%, rgba(120, 134, 158, 0) 60%);
+  background-attachment: fixed;
+}
+
+/* Fine grain to kill the flat-digital feel — fixed, never on scroll containers */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@layer components {
+  /* Machined-aluminium surface: top highlight, bottom shade, soft cast */
+  .metal {
+    background-image: linear-gradient(180deg, #ffffff 0%, #f4f6f9 48%, #e4e8ee 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      inset 0 -1px 1px rgba(20, 23, 28, 0.08),
+      0 1px 2px rgba(20, 23, 28, 0.1),
+      0 10px 22px -12px rgba(20, 23, 28, 0.32);
+  }
+  .metal:active {
+    background-image: linear-gradient(180deg, #e9edf2 0%, #f1f3f7 100%);
+    box-shadow:
+      inset 0 2px 5px rgba(20, 23, 28, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
+
+  /* Glass plate sitting in the field — the recurring panel surface */
+  .plate {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.92) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 1px 2px rgba(20, 23, 28, 0.04),
+      0 22px 48px -28px rgba(20, 23, 28, 0.28);
+  }
+
+  /* Recessed well — for inputs, scan window, track grooves */
+  .well {
+    background-image: linear-gradient(180deg, #e9ecf1 0%, #f3f5f8 100%);
+    box-shadow:
+      inset 0 2px 4px rgba(20, 23, 28, 0.1),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.7);
+  }
+
+  /* Green glass accent (the "Send" / orb tone from the reference) */
+  .glass-moss {
+    background-image: linear-gradient(180deg, #34c785 0%, #1fa971 52%, #16855a 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      inset 0 -2px 4px rgba(8, 64, 44, 0.4),
+      0 8px 22px -8px rgba(31, 169, 113, 0.6);
+    color: #fff;
+  }
+  .glass-moss:active {
+    box-shadow:
+      inset 0 2px 6px rgba(8, 64, 44, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+
+  .hairline {
+    box-shadow: inset 0 0 0 1px rgba(20, 23, 28, 0.06);
+  }
+}
+
+/* Slim, premium scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 134, 158, 0.35);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 134, 158, 0.55);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
