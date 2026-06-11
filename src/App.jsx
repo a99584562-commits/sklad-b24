@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { people } from './data.js'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { people, warrantyState } from './data.js'
 import { useStore } from './store.jsx'
 import { Avatar, Icon } from './ui.jsx'
 import Dashboard from './screens/Dashboard.jsx'
@@ -48,6 +48,166 @@ function NavItem({ item, active, onClick }) {
       {item.label}
       {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-moss-500" />}
     </button>
+  )
+}
+
+const TONE_TEXT = { bad: 'text-rose-600', warn: 'text-amber-600', info: 'text-sky-600', ok: 'text-moss-600' }
+
+// Реальные уведомления склада из текущего состояния
+function useNotifications() {
+  const { items, warehouses, stockCheck, acts } = useStore()
+  return useMemo(() => {
+    const live = items.filter((i) => i.status !== 'writtenoff')
+    const out = []
+
+    warehouses.forEach((w) => {
+      const bad = stockCheck(w).filter((s) => !s.ok)
+      if (bad.length)
+        out.push({
+          id: 'stock-' + w.id,
+          tone: 'bad',
+          icon: 'alert',
+          title: `${w.no}: дефицит несгораемого остатка`,
+          sub: bad.map((b) => `${b.category?.title} −${b.gap}`).join(', '),
+          to: 'warehouses',
+        })
+    })
+
+    const broke = live.filter((i) => i.status === 'broke')
+    if (broke.length)
+      out.push({
+        id: 'broke',
+        tone: 'bad',
+        icon: 'writeoff',
+        title: `В дефектовке: ${broke.length} ед.`,
+        sub: 'ожидают акта списания',
+        to: 'writeoffs',
+      })
+
+    const expired = live.filter((i) => warrantyState(i).key === 'expired')
+    if (expired.length)
+      out.push({
+        id: 'warr-exp',
+        tone: 'bad',
+        icon: 'shield',
+        title: `Гарантия истекла: ${expired.length}`,
+        sub: 'требуется решение по ТМЦ',
+        to: 'reports',
+      })
+
+    const soon = live.filter((i) => warrantyState(i).key === 'soon')
+    if (soon.length)
+      out.push({
+        id: 'warr-soon',
+        tone: 'warn',
+        icon: 'clock',
+        title: `Гарантия истекает: ${soon.length}`,
+        sub: 'в ближайшие 30 дней',
+        to: 'reports',
+      })
+
+    acts.slice(0, 2).forEach((a) =>
+      out.push({
+        id: 'task-' + a.id,
+        tone: 'info',
+        icon: 'spark',
+        title: a.taskText,
+        sub: `авто-задача по акту ${a.no}`,
+        to: 'writeoffs',
+      }),
+    )
+
+    return out
+  }, [items, warehouses, acts, stockCheck])
+}
+
+function Notifications({ go, size = 16 }) {
+  const list = useNotifications()
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const actionable = list.filter((n) => n.tone === 'bad' || n.tone === 'warn').length
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    const onKey = (e) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="Уведомления"
+        className={`relative grid h-9 w-9 place-items-center rounded-full text-ink-500 ${ease} metal active:scale-95 ${open ? 'pressed' : ''}`}
+      >
+        <Icon name="bell" size={size} />
+        {actionable > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+            {actionable}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-[calc(100%+10px)] z-50 w-80 max-w-[calc(100vw-2rem)]"
+          style={{ animation: 'fade-up .35s cubic-bezier(0.32,0.72,0,1) both' }}
+        >
+          <div className="plate rounded-3xl p-2 hairline shadow-ambient-lg">
+            <div className="flex items-center justify-between px-3 pb-2 pt-2">
+              <span className="text-sm font-bold tracking-tight text-ink-900">Уведомления</span>
+              {actionable > 0 ? (
+                <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[11px] font-bold text-rose-600">
+                  {actionable} требуют внимания
+                </span>
+              ) : (
+                <span className="rounded-full bg-moss-50 px-2 py-0.5 text-[11px] font-bold text-moss-600">всё в норме</span>
+              )}
+            </div>
+
+            <div className="max-h-[60vh] space-y-1 overflow-y-auto">
+              {list.length === 0 && (
+                <div className="grid place-items-center gap-2 px-4 py-8 text-center">
+                  <span className="grid h-10 w-10 place-items-center rounded-2xl well text-moss-600">
+                    <Icon name="check" size={18} />
+                  </span>
+                  <p className="text-sm text-ink-500">Уведомлений нет — всё под контролем</p>
+                </div>
+              )}
+              {list.map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => {
+                    go(n.to)
+                    setOpen(false)
+                  }}
+                  className="group flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition-colors hover:bg-ink-900/[0.03]"
+                >
+                  <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl well ${TONE_TEXT[n.tone]}`}>
+                    <Icon name={n.icon} size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-semibold text-ink-900">{n.title}</span>
+                    <span className="block truncate text-[11px] text-ink-500">{n.sub}</span>
+                  </span>
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink-900/[0.04] text-ink-400 transition-transform duration-500 ease-spring group-hover:translate-x-0.5">
+                    <Icon name="chevronR" size={14} />
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -107,9 +267,7 @@ export default function App() {
         <div className="plate flex w-full items-center justify-between rounded-full py-2 pl-3 pr-2 hairline backdrop-blur-xl">
           <Brand />
           <div className="flex items-center gap-1.5">
-            <button className="grid h-9 w-9 place-items-center rounded-full text-ink-500">
-              <Icon name="bell" size={17} />
-            </button>
+            <Notifications go={go} size={17} />
             <Avatar person={me} size={34} />
           </div>
         </div>
@@ -131,9 +289,7 @@ export default function App() {
               <Icon name="clock" size={15} className="text-ink-500" />
               Сбросить демо
             </button>
-            <button className="grid h-9 w-9 place-items-center rounded-full metal text-ink-500">
-              <Icon name="bell" size={16} />
-            </button>
+            <Notifications go={go} size={16} />
           </div>
 
           <Screen go={go} key={view} />
