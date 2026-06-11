@@ -28,7 +28,7 @@ function Brand() {
       </span>
       <div className="leading-tight">
         <div className="text-[15px] font-extrabold tracking-tight text-ink-900">СКЛАД</div>
-        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-400">забаланс · Б24</div>
+        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-400">25/7 · Б24</div>
       </div>
     </div>
   )
