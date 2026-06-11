@@ -75,6 +75,15 @@ body::after {
       inset 0 -1px 0 rgba(255, 255, 255, 0.7);
   }
 
+  /* Pressed-in surface — active/selected control utoplena v poverhnost */
+  .pressed {
+    background-image: linear-gradient(180deg, #e6e9ee 0%, #f1f4f8 72%);
+    box-shadow:
+      inset 0 2px 5px rgba(20, 23, 28, 0.13),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 0 0 1px rgba(20, 23, 28, 0.04);
+  }
+
   /* Green glass accent (the "Send" / orb tone from the reference) */
   .glass-moss {
     background-image: linear-gradient(180deg, #34c785 0%, #1fa971 52%, #16855a 100%);

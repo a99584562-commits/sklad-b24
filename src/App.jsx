@@ -39,7 +39,7 @@ function NavItem({ item, active, onClick }) {
     <button
       onClick={onClick}
       className={`group flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left text-sm font-semibold ${ease} ${
-        active ? 'metal text-ink-900' : 'text-ink-500 hover:bg-ink-900/[0.04] hover:text-ink-700'
+        active ? 'pressed text-ink-900' : 'text-ink-500 hover:bg-ink-900/[0.04] hover:text-ink-700'
       }`}
     >
       <span className={`${active ? 'text-moss-600' : 'text-ink-400 group-hover:text-ink-600'} ${ease}`}>
