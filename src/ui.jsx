@@ -282,34 +282,49 @@ export function Meter({ value, tone = 'ok', className = '' }) {
   )
 }
 
-// ── Modal (centered glass card) ───────────────────────────────────────────────
+// ── Modal (centered glass card, scrolls when taller than viewport) ────────────
 export function Modal({ open, onClose, children, title, eyebrow, icon, maxW = 'max-w-lg' }) {
   useEffect(() => {
     if (!open) return
     const onKey = (e) => e.key === 'Escape' && onClose?.()
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // блокируем скролл фона, пока открыта модалка
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
   }, [open, onClose])
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center p-4">
-      <div className="absolute inset-0 bg-ink-900/35 backdrop-blur-sm animate-[fade-up_.3s_ease]" onClick={onClose} />
-      <div className={`relative w-full ${maxW}`} style={{ animation: 'fade-up .4s cubic-bezier(0.32,0.72,0,1) both' }}>
-        <div className="plate rounded-4xl p-5 hairline">
-          <div className="flex items-start justify-between">
-            <div>
-              {eyebrow && (
-                <Eyebrow>
-                  {icon && <Icon name={icon} size={12} />} {eyebrow}
-                </Eyebrow>
-              )}
-              {title && <h3 className="mt-2 text-xl font-bold tracking-tight text-ink-900">{title}</h3>}
+    <div className="fixed inset-0 z-40">
+      <div className="fixed inset-0 bg-ink-900/35 backdrop-blur-sm animate-[fade-up_.3s_ease]" onClick={onClose} />
+      {/* прокручиваемый слой: центрирует короткие окна и скроллит длинные */}
+      <div className="fixed inset-0 overflow-y-auto overscroll-contain" onClick={onClose}>
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div
+            className={`relative w-full ${maxW}`}
+            style={{ animation: 'fade-up .4s cubic-bezier(0.32,0.72,0,1) both' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="plate rounded-4xl p-5 hairline">
+              <div className="flex items-start justify-between">
+                <div>
+                  {eyebrow && (
+                    <Eyebrow>
+                      {icon && <Icon name={icon} size={12} />} {eyebrow}
+                    </Eyebrow>
+                  )}
+                  {title && <h3 className="mt-2 text-xl font-bold tracking-tight text-ink-900">{title}</h3>}
+                </div>
+                <button onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full metal text-ink-500 active:scale-95">
+                  <Icon name="x" size={16} />
+                </button>
+              </div>
+              {children}
             </div>
-            <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full metal text-ink-500 active:scale-95">
-              <Icon name="x" size={16} />
-            </button>
           </div>
-          {children}
         </div>
       </div>
     </div>
