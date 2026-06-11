@@ -282,4 +282,118 @@ export function Meter({ value, tone = 'ok', className = '' }) {
   )
 }
 
+// ── Modal (centered glass card) ───────────────────────────────────────────────
+export function Modal({ open, onClose, children, title, eyebrow, icon, maxW = 'max-w-lg' }) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => e.key === 'Escape' && onClose?.()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-center p-4">
+      <div className="absolute inset-0 bg-ink-900/35 backdrop-blur-sm animate-[fade-up_.3s_ease]" onClick={onClose} />
+      <div className={`relative w-full ${maxW}`} style={{ animation: 'fade-up .4s cubic-bezier(0.32,0.72,0,1) both' }}>
+        <div className="plate rounded-4xl p-5 hairline">
+          <div className="flex items-start justify-between">
+            <div>
+              {eyebrow && (
+                <Eyebrow>
+                  {icon && <Icon name={icon} size={12} />} {eyebrow}
+                </Eyebrow>
+              )}
+              {title && <h3 className="mt-2 text-xl font-bold tracking-tight text-ink-900">{title}</h3>}
+            </div>
+            <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full metal text-ink-500 active:scale-95">
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Labeled field with recessed input ─────────────────────────────────────────
+export function Field({ label, value, onChange, placeholder, type = 'text', className = '' }) {
+  return (
+    <label className={`block ${className}`}>
+      {label && <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-ink-400">{label}</span>}
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-2xl well px-4 py-2.5 text-sm text-ink-900 outline-none placeholder:text-ink-400"
+      />
+    </label>
+  )
+}
+
+export function TextArea({ label, value, onChange, placeholder, rows = 2, className = '' }) {
+  return (
+    <label className={`block ${className}`}>
+      {label && <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-ink-400">{label}</span>}
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className="w-full resize-none rounded-2xl well px-4 py-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
+      />
+    </label>
+  )
+}
+
+export function Select({ label, value, onChange, options, className = '' }) {
+  return (
+    <label className={`block ${className}`}>
+      {label && <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-ink-400">{label}</span>}
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full appearance-none rounded-2xl well px-4 py-2.5 pr-10 text-sm font-medium text-ink-900 outline-none"
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-400">
+          <Icon name="chevronD" size={15} />
+        </span>
+      </div>
+    </label>
+  )
+}
+
+// ── Toast (floating pill, auto-dismiss handled by caller) ─────────────────────
+export function Toast({ open, onClose, icon = 'check', title, sub, tone = 'moss' }) {
+  if (!open) return null
+  const bubble = tone === 'moss' ? 'glass-moss' : 'metal text-ink-700'
+  return (
+    <div
+      className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4"
+      style={{ animation: 'fade-up .4s cubic-bezier(0.32,0.72,0,1) both' }}
+    >
+      <div className="flex items-center gap-3 rounded-full plate py-2.5 pl-3 pr-2.5 hairline">
+        <span className={`grid h-9 w-9 place-items-center rounded-full ${bubble}`}>
+          <Icon name={icon} size={16} />
+        </span>
+        <div className="text-sm">
+          <span className="font-semibold text-ink-900">{title}</span>
+          {sub && <span className="ml-1.5 text-ink-500">{sub}</span>}
+        </div>
+        <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full text-ink-400 hover:text-ink-700">
+          <Icon name="x" size={15} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export { Icon }

@@ -1,17 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { warehouses, itemsInWarehouse, personById, shortDate, TODAY } from '../data.js'
-import {
-  Bezel,
-  Reveal,
-  Eyebrow,
-  Badge,
-  Avatar,
-  Thumb,
-  MetalButton,
-  MossButton,
-  Segmented,
-  Icon,
-} from '../ui.jsx'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { shortDate, TODAY } from '../data.js'
+import { useStore } from '../store.jsx'
+import { parseScan } from '../codes.jsx'
+import { Bezel, Reveal, Eyebrow, Badge, Avatar, Thumb, MetalButton, MossButton, Segmented, Field, Toast, Icon } from '../ui.jsx'
 
 const ROW_TONE = {
   pending: { tone: 'mute', label: 'Ожидает', icon: 'clock' },
@@ -19,7 +10,6 @@ const ROW_TONE = {
   missing: { tone: 'bad', label: 'Отсутствует', icon: 'x' },
 }
 
-// Кольцевой индикатор прогресса
 function Ring({ value, size = 132 }) {
   const r = (size - 16) / 2
   const c = 2 * Math.PI * r
@@ -27,18 +17,7 @@ function Ring({ value, size = 132 }) {
   return (
     <svg width={size} height={size} className="-rotate-90">
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(20,23,28,.08)" strokeWidth="10" />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        stroke="url(#mossgrad)"
-        strokeWidth="10"
-        strokeLinecap="round"
-        strokeDasharray={c}
-        strokeDashoffset={off}
-        style={{ transition: 'stroke-dashoffset .6s cubic-bezier(0.32,0.72,0,1)' }}
-      />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="url(#mossgrad)" strokeWidth="10" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} style={{ transition: 'stroke-dashoffset .6s cubic-bezier(0.32,0.72,0,1)' }} />
       <defs>
         <linearGradient id="mossgrad" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#34c785" />
@@ -49,26 +28,44 @@ function Ring({ value, size = 132 }) {
   )
 }
 
-function Scanner({ scanning, last, onScan, disabled }) {
+// Реальная камера через html5-qrcode (библиотека грузится динамически — только при включении)
+function CameraView({ onDecode, onError }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    let scanner
+    let stopped = false
+    import('html5-qrcode')
+      .then(({ Html5Qrcode }) => {
+        if (stopped || !ref.current) return
+        const id = 'reader-' + Math.random().toString(36).slice(2)
+        ref.current.id = id
+        scanner = new Html5Qrcode(id, { verbose: false })
+        return scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 210, height: 210 } }, (text) => onDecode(text), () => {})
+      })
+      .catch((e) => {
+        stopped = true
+        onError?.(e)
+      })
+    return () => {
+      stopped = true
+      try {
+        if (scanner?.getState?.() === 2) scanner.stop().then(() => scanner.clear()).catch(() => {})
+        else scanner?.clear?.()
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [onDecode, onError])
+  return <div ref={ref} className="h-full w-full overflow-hidden [&_video]:h-full [&_video]:w-full [&_video]:object-cover" />
+}
+
+function Scanner({ scanning, last, onScan, disabled, camera, onToggleCamera, onDecode, cameraError, onCameraError, manual, setManual, onManual }) {
   return (
     <div className="relative overflow-hidden rounded-3xl well p-1.5">
       <div className="relative grid aspect-[4/3] place-items-center overflow-hidden rounded-[1.35rem] bg-gradient-to-b from-ink-900 to-[#0c1a14]">
-        {/* viewfinder corners */}
-        <div className="absolute inset-6">
-          {['left-0 top-0 border-l-2 border-t-2', 'right-0 top-0 border-r-2 border-t-2', 'left-0 bottom-0 border-l-2 border-b-2', 'right-0 bottom-0 border-r-2 border-b-2'].map(
-            (cls) => (
-              <span key={cls} className={`absolute h-8 w-8 rounded-[6px] border-moss-400/80 ${cls}`} />
-            ),
-          )}
-        </div>
-
-        {/* scanline */}
-        {scanning && (
-          <div className="absolute inset-x-10 top-1/2 h-px bg-moss-400 shadow-[0_0_18px_4px_rgba(70,201,126,.7)] animate-scanline" />
-        )}
-
-        {/* content */}
-        {last ? (
+        {camera && !cameraError ? (
+          <CameraView onDecode={onDecode} onError={onCameraError} />
+        ) : last ? (
           <div className="flex flex-col items-center gap-2 text-center" style={{ animation: 'fade-up .4s ease both' }}>
             <span className="text-5xl drop-shadow">{last.emoji}</span>
             <div className="font-mono text-sm font-semibold text-white">{last.inv}</div>
@@ -77,35 +74,67 @@ function Scanner({ scanning, last, onScan, disabled }) {
             </Badge>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-2 text-white/55">
+          <div className="flex flex-col items-center gap-2 px-6 text-center text-white/55">
             <Icon name="qr" size={42} strokeWidth={1.25} />
-            <span className="text-xs">{scanning ? 'Считывание…' : 'Наведите камеру на QR / штрих-код'}</span>
+            <span className="text-xs">{cameraError ? 'Камера недоступна — используйте симуляцию или ручной ввод' : scanning ? 'Считывание…' : 'Наведите камеру на QR / штрих-код'}</span>
           </div>
         )}
 
+        {/* viewfinder corners overlay */}
+        <div className="pointer-events-none absolute inset-6">
+          {['left-0 top-0 border-l-2 border-t-2', 'right-0 top-0 border-r-2 border-t-2', 'left-0 bottom-0 border-l-2 border-b-2', 'right-0 bottom-0 border-r-2 border-b-2'].map((cls) => (
+            <span key={cls} className={`absolute h-8 w-8 rounded-[6px] border-moss-400/80 ${cls}`} />
+          ))}
+        </div>
+        {scanning && !camera && <div className="pointer-events-none absolute inset-x-10 top-1/2 h-px bg-moss-400 shadow-[0_0_18px_4px_rgba(70,201,126,.7)] animate-scanline" />}
+
         <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm">
-          <span className={`h-1.5 w-1.5 rounded-full ${scanning ? 'bg-moss-400 animate-pulse' : 'bg-white/40'}`} />
-          <span className="text-[10px] uppercase tracking-wider text-white/70">камера склада</span>
+          <span className={`h-1.5 w-1.5 rounded-full ${camera && !cameraError ? 'bg-moss-400 animate-pulse' : 'bg-white/40'}`} />
+          <span className="text-[10px] uppercase tracking-wider text-white/70">{camera && !cameraError ? 'камера активна' : 'камера склада'}</span>
         </div>
       </div>
 
-      <div className="px-1.5 pb-1 pt-3">
-        <MossButton icon="scan" trailing="arrowUR" onClick={onScan} className="w-full justify-center" size="lg">
-          {disabled ? 'Инвентаризация завершена' : 'Сканировать единицу'}
-        </MossButton>
+      <div className="space-y-2.5 px-1.5 pb-1 pt-3">
+        <div className="flex gap-2">
+          <MossButton icon="scan" onClick={onScan} className="flex-1 justify-center" size="lg">
+            {disabled ? 'Сверка завершена' : 'Симулировать скан'}
+          </MossButton>
+          <MetalButton icon="camera" onClick={onToggleCamera} title="Включить камеру" active={camera}>
+            {camera ? 'Стоп' : 'Камера'}
+          </MetalButton>
+        </div>
+        {/* ручной ввод кода — фолбэк, когда нет камеры */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            onManual()
+          }}
+          className="flex gap-2"
+        >
+          <div className="flex-1">
+            <Field value={manual} onChange={setManual} placeholder="Ввести инв./штрих-код вручную…" />
+          </div>
+          <MetalButton onClick={onManual}>Найти</MetalButton>
+        </form>
       </div>
     </div>
   )
 }
 
 export default function Inventory({ go }) {
+  const { warehouses, itemsInWarehouse, personById } = useStore()
   const [whId, setWhId] = useState(warehouses[0].id)
-  const wh = warehouses.find((w) => w.id === whId)
-  const expected = useMemo(() => itemsInWarehouse(whId), [whId])
+  const wh = warehouses.find((w) => w.id === whId) || warehouses[0]
+  const expected = useMemo(() => itemsInWarehouse(whId), [itemsInWarehouse, whId])
 
   const [statuses, setStatuses] = useState({})
   const [scanning, setScanning] = useState(false)
   const [last, setLast] = useState(null)
+  const [camera, setCamera] = useState(false)
+  const [cameraError, setCameraError] = useState(false)
+  const [manual, setManual] = useState('')
+  const [toast, setToast] = useState(null)
+  const lastCodeRef = useRef({ code: '', t: 0 })
 
   useEffect(() => {
     setStatuses(Object.fromEntries(expected.map((i) => [i.id, 'pending'])))
@@ -113,6 +142,10 @@ export default function Inventory({ go }) {
     setScanning(false)
   }, [whId, expected])
 
+  const flash = (t) => {
+    setToast(t)
+    setTimeout(() => setToast(null), 3000)
+  }
   const set = (id, st) => setStatuses((s) => ({ ...s, [id]: st }))
 
   const counts = expected.reduce(
@@ -139,6 +172,43 @@ export default function Inventory({ go }) {
     }, 900)
   }
 
+  // обработка распознанного кода (камера / ручной ввод)
+  const handleCode = (raw) => {
+    const code = parseScan(raw)
+    if (!code) return
+    const item = expected.find((i) => i.inv === code || i.barcode === code)
+    if (!item) {
+      flash({ title: 'Код не из эталона склада', sub: code, tone: 'metal' })
+      return
+    }
+    const cur = statuses[item.id] || 'pending'
+    if (cur === 'found') {
+      flash({ title: 'Уже подтверждён', sub: item.inv, tone: 'metal' })
+      return
+    }
+    set(item.id, 'found')
+    setLast(item)
+    flash({ title: 'Подтверждён по коду', sub: item.inv })
+  }
+
+  const onDecode = (text) => {
+    const now = Date.now()
+    if (text === lastCodeRef.current.code && now - lastCodeRef.current.t < 1800) return
+    lastCodeRef.current = { code: text, t: now }
+    handleCode(text)
+  }
+
+  const toggleCamera = () => {
+    setCameraError(false)
+    setCamera((v) => !v)
+  }
+
+  const onManual = () => {
+    if (!manual.trim()) return
+    handleCode(manual.trim())
+    setManual('')
+  }
+
   return (
     <div className="space-y-6">
       <Reveal>
@@ -147,11 +217,9 @@ export default function Inventory({ go }) {
             <Eyebrow>
               <span className="h-1.5 w-1.5 rounded-full bg-moss-500 animate-pulse" /> Инвентаризация по QR
             </Eyebrow>
-            <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[38px]">
-              Сверка с эталоном
-            </h1>
+            <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[38px]">Сверка с эталоном</h1>
             <p className="mt-2 max-w-xl text-[15px] text-ink-500">
-              Сканируйте QR/штрих-код единиц и подтверждайте наличие. Система формирует фактическое наполнение и
+              Сканируйте QR/штрих-код единиц камерой и подтверждайте наличие. Система формирует фактическое наполнение и
               расхождение от эталонного остатка склада.
             </p>
           </div>
@@ -161,20 +229,32 @@ export default function Inventory({ go }) {
       <Reveal delay={50}>
         <div className="flex items-center gap-3 overflow-x-auto pb-1">
           <span className="shrink-0 text-sm font-medium text-ink-500">Склад:</span>
-          <Segmented
-            options={warehouses.map((w) => ({ value: w.id, label: `${w.no}` }))}
-            value={whId}
-            onChange={setWhId}
-          />
+          <Segmented options={warehouses.map((w) => ({ value: w.id, label: w.no }))} value={whId} onChange={setWhId} />
           <span className="hidden shrink-0 text-sm text-ink-400 sm:inline">{wh.title}</span>
         </div>
       </Reveal>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        {/* scanner */}
         <Reveal delay={80} className="lg:col-span-5">
           <Bezel className="h-full">
-            <Scanner scanning={scanning} last={last} onScan={scanNext} disabled={done} />
+            <Scanner
+              scanning={scanning}
+              last={last}
+              onScan={scanNext}
+              disabled={done}
+              camera={camera}
+              onToggleCamera={toggleCamera}
+              onDecode={onDecode}
+              cameraError={cameraError}
+              onCameraError={() => {
+                setCameraError(true)
+                setCamera(false)
+                flash({ title: 'Нет доступа к камере', sub: 'разрешите камеру или используйте симуляцию', tone: 'metal' })
+              }}
+              manual={manual}
+              setManual={setManual}
+              onManual={onManual}
+            />
             <div className="mt-4 grid grid-cols-3 gap-2 text-center">
               {[
                 { k: 'found', n: counts.found, l: 'Подтверждено', c: 'text-moss-600' },
@@ -190,7 +270,6 @@ export default function Inventory({ go }) {
           </Bezel>
         </Reveal>
 
-        {/* progress + list */}
         <Reveal delay={120} className="lg:col-span-7">
           <Bezel className="h-full" pad="p-0">
             <div className="flex items-center gap-5 p-5">
@@ -219,16 +298,12 @@ export default function Inventory({ go }) {
             </div>
 
             <div className="max-h-[360px] overflow-y-auto border-t border-ink-900/[0.06]">
+              {expected.length === 0 && <div className="px-5 py-10 text-center text-sm text-ink-400">На складе нет позиций для сверки</div>}
               {expected.map((it) => {
                 const st = statuses[it.id] || 'pending'
                 const meta = ROW_TONE[st]
                 return (
-                  <div
-                    key={it.id}
-                    className={`flex items-center gap-3 px-5 py-3 transition-colors ${
-                      st === 'found' ? 'bg-moss-50/60' : st === 'missing' ? 'bg-rose-500/[0.04]' : ''
-                    }`}
-                  >
+                  <div key={it.id} className={`flex items-center gap-3 px-5 py-3 transition-colors ${st === 'found' ? 'bg-moss-50/60' : st === 'missing' ? 'bg-rose-500/[0.04]' : ''}`}>
                     <Thumb emoji={it.emoji} hue={it.hue} size="sm" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px] font-semibold text-ink-900">{it.categoryTitle}</div>
@@ -238,18 +313,10 @@ export default function Inventory({ go }) {
                     </div>
                     {st === 'pending' ? (
                       <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => set(it.id, 'found')}
-                          title="Подтвердить наличие"
-                          className="grid h-8 w-8 place-items-center rounded-full metal text-moss-600 active:scale-95"
-                        >
+                        <button onClick={() => set(it.id, 'found')} title="Подтвердить наличие" className="grid h-8 w-8 place-items-center rounded-full metal text-moss-600 active:scale-95">
                           <Icon name="check" size={15} />
                         </button>
-                        <button
-                          onClick={() => set(it.id, 'missing')}
-                          title="Отметить отсутствие"
-                          className="grid h-8 w-8 place-items-center rounded-full metal text-rose-500 active:scale-95"
-                        >
+                        <button onClick={() => set(it.id, 'missing')} title="Отметить отсутствие" className="grid h-8 w-8 place-items-center rounded-full metal text-rose-500 active:scale-95">
                           <Icon name="x" size={15} />
                         </button>
                       </div>
@@ -266,17 +333,12 @@ export default function Inventory({ go }) {
         </Reveal>
       </div>
 
-      {/* итог */}
       {done && (
         <Reveal>
           <Bezel>
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
-                <span
-                  className={`grid h-12 w-12 place-items-center rounded-2xl ${
-                    counts.missing ? 'bg-rose-500/10 text-rose-600' : 'glass-moss'
-                  }`}
-                >
+                <span className={`grid h-12 w-12 place-items-center rounded-2xl ${counts.missing ? 'bg-rose-500/10 text-rose-600' : 'glass-moss'}`}>
                   <Icon name={counts.missing ? 'alert' : 'check'} size={22} />
                 </span>
                 <div>
@@ -289,7 +351,9 @@ export default function Inventory({ go }) {
                 </div>
               </div>
               <div className="flex gap-2.5">
-                <MetalButton icon="download">Зафиксировать</MetalButton>
+                <MetalButton icon="download" onClick={() => flash({ title: 'Инвентаризация зафиксирована', sub: wh.no })}>
+                  Зафиксировать
+                </MetalButton>
                 {counts.missing > 0 && (
                   <MossButton icon="writeoff" trailing="arrowUR" onClick={() => go('writeoffs')}>
                     Сформировать акт
@@ -300,6 +364,8 @@ export default function Inventory({ go }) {
           </Bezel>
         </Reveal>
       )}
+
+      <Toast open={!!toast} onClose={() => setToast(null)} title={toast?.title} sub={toast?.sub} tone={toast?.tone} icon={toast?.tone === 'metal' ? 'scan' : 'check'} />
     </div>
   )
 }

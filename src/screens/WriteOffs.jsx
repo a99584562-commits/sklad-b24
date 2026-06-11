@@ -1,18 +1,8 @@
 import { useState } from 'react'
-import { acts, allItems, warehouseById, personById, money, shortDate } from '../data.js'
-import {
-  Bezel,
-  Reveal,
-  Eyebrow,
-  Badge,
-  Avatar,
-  Thumb,
-  MetalButton,
-  MossButton,
-  Icon,
-} from '../ui.jsx'
+import { money, shortDate, plural } from '../data.js'
+import { useStore } from '../store.jsx'
+import { Bezel, Reveal, Eyebrow, Badge, Avatar, Thumb, MetalButton, MossButton, Modal, TextArea, Toast, Icon } from '../ui.jsx'
 
-// Цепочка стадий акта
 function Chain({ stage }) {
   const steps = [
     { key: 'defect', label: 'Дефектовка', icon: 'alert' },
@@ -21,28 +11,22 @@ function Chain({ stage }) {
   ]
   const reached = stage === 'writeoff' ? 3 : 2
   return (
-    <div className="flex items-center gap-1.5">
-      {steps.map((s, i) => {
-        const active = i < reached
-        return (
-          <div key={s.key} className="flex items-center gap-1.5">
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                active ? 'glass-moss' : 'well text-ink-400'
-              }`}
-            >
-              <Icon name={s.icon} size={12} />
-              {s.label}
-            </span>
-            {i < steps.length - 1 && <Icon name="chevronR" size={12} className="text-ink-300" />}
-          </div>
-        )
-      })}
+    <div className="flex flex-wrap items-center gap-1.5">
+      {steps.map((s, i) => (
+        <div key={s.key} className="flex items-center gap-1.5">
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${i < reached ? 'glass-moss' : 'well text-ink-400'}`}>
+            <Icon name={s.icon} size={12} />
+            {s.label}
+          </span>
+          {i < steps.length - 1 && <Icon name="chevronR" size={12} className="text-ink-300" />}
+        </div>
+      ))}
     </div>
   )
 }
 
 function ActCard({ a }) {
+  const { warehouseById, personById } = useStore()
   const wh = warehouseById(a.wh)
   const taskTo = personById(a.taskTo)
   return (
@@ -76,11 +60,10 @@ function ActCard({ a }) {
         <p className="mt-1 text-sm text-ink-700">{a.reason}</p>
       </div>
 
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-4">
         <Chain stage={a.stage} />
       </div>
 
-      {/* авто-задача */}
       <div className="mt-4 flex items-center gap-3 rounded-2xl bg-moss-50 px-3.5 py-3 ring-1 ring-inset ring-moss-500/20">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl glass-moss">
           <Icon name="spark" size={16} />
@@ -99,134 +82,75 @@ function ActCard({ a }) {
 }
 
 function CreateModal({ open, onClose, onCreate }) {
-  const defective = allItems.filter((i) => i.status === 'broke')
+  const { items, warehouseById, personById } = useStore()
+  const defective = items.filter((i) => i.status === 'broke')
   const [picked, setPicked] = useState(null)
   const [reason, setReason] = useState('')
-  if (!open) return null
 
   const item = defective.find((i) => i.id === picked)
   const wh = item ? warehouseById(item.wh) : null
   const taskTo = wh ? personById(wh.responsible) : null
 
   return (
-    <div className="fixed inset-0 z-40 grid place-items-center p-4">
-      <div className="absolute inset-0 bg-ink-900/35 backdrop-blur-sm animate-[fade-up_.3s_ease]" onClick={onClose} />
-      <div
-        className="relative w-full max-w-lg"
-        style={{ animation: 'fade-up .4s cubic-bezier(0.32,0.72,0,1) both' }}
-      >
-        <div className="plate rounded-4xl p-5 hairline">
-          <div className="flex items-start justify-between">
-            <div>
-              <Eyebrow>
-                <Icon name="writeoff" size={12} /> Новый акт списания
-              </Eyebrow>
-              <h3 className="mt-2 text-xl font-bold tracking-tight text-ink-900">ТМЦ, пришедшее в негодность</h3>
-            </div>
-            <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full metal text-ink-500 active:scale-95">
-              <Icon name="x" size={16} />
-            </button>
-          </div>
-
-          <div className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-            1 · Выберите единицу
-          </div>
-          <div className="mt-2 max-h-44 space-y-2 overflow-y-auto pr-1">
-            {defective.map((it) => (
-              <button
-                key={it.id}
-                onClick={() => setPicked(it.id)}
-                className={`flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition-all ${
-                  picked === it.id ? 'glass-moss' : 'well'
-                }`}
-              >
-                <Thumb emoji={it.emoji} hue={it.hue} size="sm" className={picked === it.id ? 'ring-2 ring-white/40' : ''} />
-                <div className="min-w-0 flex-1">
-                  <div className={`truncate text-[13px] font-semibold ${picked === it.id ? 'text-white' : 'text-ink-900'}`}>
-                    {it.categoryTitle}
-                  </div>
-                  <div className={`font-mono text-[11px] ${picked === it.id ? 'text-white/80' : 'text-ink-400'}`}>
-                    {it.inv} · {warehouseById(it.wh)?.no}
-                  </div>
-                </div>
-                {picked === it.id && <Icon name="check" size={16} className="text-white" />}
-              </button>
-            ))}
-            {defective.length === 0 && (
-              <div className="rounded-2xl well px-4 py-6 text-center text-xs text-ink-400">
-                Нет ТМЦ со статусом «дефект»
-              </div>
-            )}
-          </div>
-
-          <div className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-400">2 · Причина</div>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={2}
-            placeholder={item?.note || 'Опишите дефект / причину списания…'}
-            className="mt-2 w-full resize-none rounded-2xl well px-4 py-3 text-sm text-ink-900 outline-none placeholder:text-ink-400"
-          />
-
-          {/* предпросмотр авто-задачи */}
-          {item && (
-            <div className="mt-4 flex items-center gap-3 rounded-2xl bg-moss-50 px-3.5 py-3 ring-1 ring-inset ring-moss-500/20">
-              <Icon name="spark" size={16} className="shrink-0 text-moss-600" />
-              <div className="min-w-0 flex-1 text-[13px] text-ink-700">
-                Будет создана задача в Б24 на <span className="font-semibold">{taskTo?.name}</span>: дозакупка «
-                {item.categoryTitle}» для {wh?.no}.
+    <Modal open={open} onClose={onClose} eyebrow="Новый акт списания" icon="writeoff" title="ТМЦ, пришедшее в негодность">
+      <div className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-400">1 · Выберите единицу</div>
+      <div className="mt-2 max-h-44 space-y-2 overflow-y-auto pr-1">
+        {defective.map((it) => (
+          <button
+            key={it.id}
+            onClick={() => setPicked(it.id)}
+            className={`flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition-all ${picked === it.id ? 'glass-moss' : 'well'}`}
+          >
+            <Thumb emoji={it.emoji} hue={it.hue} size="sm" className={picked === it.id ? 'ring-2 ring-white/40' : ''} />
+            <div className="min-w-0 flex-1">
+              <div className={`truncate text-[13px] font-semibold ${picked === it.id ? 'text-white' : 'text-ink-900'}`}>{it.categoryTitle}</div>
+              <div className={`font-mono text-[11px] ${picked === it.id ? 'text-white/80' : 'text-ink-400'}`}>
+                {it.inv} · {warehouseById(it.wh)?.no}
               </div>
             </div>
-          )}
+            {picked === it.id && <Icon name="check" size={16} className="text-white" />}
+          </button>
+        ))}
+        {defective.length === 0 && (
+          <div className="rounded-2xl well px-4 py-6 text-center text-xs text-ink-400">Нет ТМЦ со статусом «дефект»</div>
+        )}
+      </div>
 
-          <div className="mt-5 flex gap-2.5">
-            <MetalButton className="flex-1 justify-center" onClick={onClose}>
-              Отмена
-            </MetalButton>
-            <MossButton
-              icon="check"
-              trailing="arrowUR"
-              className="flex-1 justify-center"
-              onClick={() => item && onCreate(item)}
-            >
-              Сформировать акт
-            </MossButton>
+      <div className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-400">2 · Причина</div>
+      <TextArea value={reason} onChange={setReason} rows={2} placeholder={item?.note || 'Опишите дефект / причину списания…'} className="mt-2" />
+
+      {item && (
+        <div className="mt-4 flex items-center gap-3 rounded-2xl bg-moss-50 px-3.5 py-3 ring-1 ring-inset ring-moss-500/20">
+          <Icon name="spark" size={16} className="shrink-0 text-moss-600" />
+          <div className="min-w-0 flex-1 text-[13px] text-ink-700">
+            Будет создана задача в Б24 на <span className="font-semibold">{taskTo?.name}</span>: дозакупка «{item.categoryTitle}» для {wh?.no}.
           </div>
         </div>
-      </div>
-    </div>
-  )
-}
+      )}
 
-function Toast({ data, onClose }) {
-  if (!data) return null
-  return (
-    <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4" style={{ animation: 'fade-up .4s cubic-bezier(0.32,0.72,0,1) both' }}>
-      <div className="flex items-center gap-3 rounded-full plate py-2.5 pl-3 pr-2.5 hairline">
-        <span className="grid h-9 w-9 place-items-center rounded-full glass-moss">
-          <Icon name="check" size={16} />
-        </span>
-        <div className="text-sm">
-          <span className="font-semibold text-ink-900">Акт {data.no} сформирован</span>
-          <span className="ml-1.5 text-ink-500">+ задача на дозакупку поставлена</span>
-        </div>
-        <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full text-ink-400 hover:text-ink-700">
-          <Icon name="x" size={15} />
-        </button>
+      <div className="mt-5 flex gap-2.5">
+        <MetalButton className="flex-1 justify-center" onClick={onClose}>
+          Отмена
+        </MetalButton>
+        <MossButton icon="check" trailing="arrowUR" className="flex-1 justify-center" onClick={() => item && onCreate(item, reason)}>
+          Сформировать акт
+        </MossButton>
       </div>
-    </div>
+    </Modal>
   )
 }
 
 export default function WriteOffs() {
+  const { acts, items, writeOff } = useStore()
   const [open, setOpen] = useState(false)
   const [toast, setToast] = useState(null)
-  const defectiveCount = allItems.filter((i) => i.status === 'broke').length
+  const defectiveCount = items.filter((i) => i.status === 'broke').length
 
-  const handleCreate = (item) => {
+  const handleCreate = (item, reason) => {
+    const act = writeOff(item.id, reason)
     setOpen(false)
-    setToast({ no: `СПИС-2026/0${15 + Math.min(item.cost % 5, 4)}` })
-    setTimeout(() => setToast(null), 4200)
+    setToast({ title: `Акт ${act?.no} сформирован`, sub: '+ задача на дозакупку поставлена' })
+    setTimeout(() => setToast(null), 4000)
   }
 
   return (
@@ -255,7 +179,7 @@ export default function WriteOffs() {
             {defectiveCount} ед. в дефектовке
           </Badge>
           <Badge tone="mute" icon="writeoff">
-            {acts.length} акта за период
+            {acts.length} {plural(acts.length, ['акт', 'акта', 'актов'])} за период
           </Badge>
         </div>
       </Reveal>
@@ -269,7 +193,7 @@ export default function WriteOffs() {
       </div>
 
       <CreateModal open={open} onClose={() => setOpen(false)} onCreate={handleCreate} />
-      <Toast data={toast} onClose={() => setToast(null)} />
+      <Toast open={!!toast} onClose={() => setToast(null)} title={toast?.title} sub={toast?.sub} />
     </div>
   )
 }

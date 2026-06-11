@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { people } from './data.js'
+import { useStore } from './store.jsx'
 import { Avatar, Icon } from './ui.jsx'
 import Dashboard from './screens/Dashboard.jsx'
 import Nomenclature from './screens/Nomenclature.jsx'
@@ -51,11 +52,18 @@ function NavItem({ item, active, onClick }) {
 }
 
 export default function App() {
+  const { resetDemo } = useStore()
   const [view, setView] = useState('dashboard')
   const me = people[1] // Марина Котова — менеджер проекта
   const go = (v) => {
     setView(v)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  const onReset = () => {
+    if (window.confirm('Сбросить демо-данные к исходному состоянию? Добавленные позиции, перемещения и акты будут удалены.')) {
+      resetDemo()
+      go('dashboard')
+    }
   }
 
   const Screen = { dashboard: Dashboard, nomenclature: Nomenclature, warehouses: Warehouses, inventory: Inventory, reports: Reports, writeoffs: WriteOffs }[view]
@@ -115,6 +123,14 @@ export default function App() {
             <span className="inline-flex items-center gap-1.5 rounded-full bg-ink-900/[0.04] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-500 hairline">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> демо-макет
             </span>
+            <button
+              onClick={onReset}
+              title="Сбросить демо-данные"
+              className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold text-ink-700 metal active:scale-95"
+            >
+              <Icon name="clock" size={15} className="text-ink-500" />
+              Сбросить демо
+            </button>
             <button className="grid h-9 w-9 place-items-center rounded-full metal text-ink-500">
               <Icon name="bell" size={16} />
             </button>

@@ -1,14 +1,6 @@
-import { useState } from 'react'
-import {
-  warehouses,
-  personById,
-  itemsInWarehouse,
-  stockCheck,
-  categoryById,
-  warrantyState,
-  money,
-  shortDate,
-} from '../data.js'
+import { useMemo, useState } from 'react'
+import { money, shortDate } from '../data.js'
+import { useStore } from '../store.jsx'
 import {
   Bezel,
   Reveal,
@@ -21,20 +13,25 @@ import {
   IconButton,
   Meter,
   StatusBadge,
+  Modal,
+  Field,
+  Select,
+  Toast,
   Icon,
 } from '../ui.jsx'
 
 function StockStatus({ wh }) {
+  const { stockCheck } = useStore()
   const check = stockCheck(wh)
   const ok = check.filter((c) => c.ok).length
-  const ratio = Math.round((ok / check.length) * 100)
+  const ratio = check.length ? Math.round((ok / check.length) * 100) : 100
   const tone = ratio === 100 ? 'ok' : ratio >= 60 ? 'warn' : 'bad'
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between text-xs">
         <span className="text-ink-500">Несгораемый остаток</span>
         <span className="font-mono font-semibold text-ink-700">
-          {ok}/{check.length}
+          {ok}/{check.length || 0}
         </span>
       </div>
       <Meter value={ratio} tone={tone} />
@@ -43,6 +40,7 @@ function StockStatus({ wh }) {
 }
 
 function WarehouseCard({ wh, onOpen, onClone }) {
+  const { itemsInWarehouse, personById } = useStore()
   const items = itemsInWarehouse(wh.id)
   const resp = personById(wh.responsible)
   const value = items.reduce((s, i) => s + i.cost, 0)
@@ -55,9 +53,7 @@ function WarehouseCard({ wh, onOpen, onClone }) {
               <Icon name="boxes" size={22} />
             </span>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold text-moss-600">{wh.no}</span>
-              </div>
+              <span className="font-mono text-xs font-bold text-moss-600">{wh.no}</span>
               <h3 className="text-[17px] font-bold leading-tight tracking-tight text-ink-900">{wh.title}</h3>
             </div>
           </div>
@@ -98,7 +94,7 @@ function WarehouseCard({ wh, onOpen, onClone }) {
               <div className="text-[11px] text-ink-400">{resp?.role.split('·')[0]}</div>
             </div>
           </div>
-          <MetalButton size="sm" trailing="chevronR" onClick={() => onOpen(wh)}>
+          <MetalButton size="sm" trailing="chevronR" onClick={() => onOpen(wh.id)}>
             Открыть
           </MetalButton>
         </div>
@@ -107,7 +103,9 @@ function WarehouseCard({ wh, onOpen, onClone }) {
   )
 }
 
-function WarehouseDrawer({ wh, onClose }) {
+function WarehouseDrawer({ whId, onClose, onClone, onImport, flash }) {
+  const { warehouseById, itemsInWarehouse, stockCheck, personById } = useStore()
+  const wh = warehouseById(whId)
   if (!wh) return null
   const items = itemsInWarehouse(wh.id)
   const resp = personById(wh.responsible)
@@ -116,10 +114,7 @@ function WarehouseDrawer({ wh, onClose }) {
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
       <div className="absolute inset-0 bg-ink-900/30 backdrop-blur-sm animate-[fade-up_.3s_ease]" onClick={onClose} />
-      <aside
-        className="relative h-full w-full max-w-lg overflow-y-auto p-3"
-        style={{ animation: 'fade-up .4s cubic-bezier(0.32,0.72,0,1) both' }}
-      >
+      <aside className="relative h-full w-full max-w-lg overflow-y-auto p-3" style={{ animation: 'fade-up .4s cubic-bezier(0.32,0.72,0,1) both' }}>
         <div className="plate min-h-full rounded-4xl p-5 hairline">
           <div className="flex items-start justify-between">
             <div>
@@ -136,7 +131,6 @@ function WarehouseDrawer({ wh, onClose }) {
             </button>
           </div>
 
-          {/* основание + ответственный */}
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="rounded-2xl well p-3.5">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
@@ -151,14 +145,11 @@ function WarehouseDrawer({ wh, onClose }) {
               </div>
               <div className="mt-2 flex items-center gap-2">
                 <Avatar person={resp} size={28} />
-                <div className="leading-tight">
-                  <div className="text-[13px] font-semibold text-ink-900">{resp?.name}</div>
-                </div>
+                <div className="text-[13px] font-semibold text-ink-900">{resp?.name}</div>
               </div>
             </div>
           </div>
 
-          {/* несгораемый остаток */}
           <div className="mt-4">
             <div className="mb-2 flex items-center justify-between">
               <h4 className="text-sm font-bold text-ink-900">Несгораемый остаток · эталон / факт</h4>
@@ -167,11 +158,12 @@ function WarehouseDrawer({ wh, onClose }) {
               </Badge>
             </div>
             <div className="space-y-2">
+              {check.length === 0 && <div className="rounded-2xl well px-3.5 py-4 text-center text-xs text-ink-400">Эталон не задан</div>}
               {check.map((c) => (
                 <div key={c.categoryId} className="flex items-center gap-3 rounded-2xl well px-3.5 py-2.5">
-                  <Thumb emoji={c.category.emoji} hue={c.category.hue} size="sm" />
+                  <Thumb emoji={c.category?.emoji} hue={c.category?.hue} size="sm" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-semibold text-ink-900">{c.category.title}</div>
+                    <div className="truncate text-[13px] font-semibold text-ink-900">{c.category?.title}</div>
                     <div className="text-xs text-ink-500">эталон {c.qty} ед.</div>
                   </div>
                   <span className={`font-mono text-sm font-bold ${c.ok ? 'text-moss-600' : 'text-rose-600'}`}>
@@ -183,10 +175,10 @@ function WarehouseDrawer({ wh, onClose }) {
             </div>
           </div>
 
-          {/* содержимое */}
           <div className="mt-5">
             <h4 className="mb-2 text-sm font-bold text-ink-900">Содержимое · {items.length} ед.</h4>
-            <div className="overflow-hidden rounded-2xl well divide-y divide-ink-900/[0.05]">
+            <div className="divide-y divide-ink-900/[0.05] overflow-hidden rounded-2xl well">
+              {items.length === 0 && <div className="px-3.5 py-5 text-center text-xs text-ink-400">Склад пуст — загрузите номенклатуру</div>}
               {items.map((it) => (
                 <div key={it.id} className="flex items-center gap-3 px-3.5 py-2.5">
                   <Thumb emoji={it.emoji} hue={it.hue} size="sm" />
@@ -201,10 +193,17 @@ function WarehouseDrawer({ wh, onClose }) {
           </div>
 
           <div className="mt-5 flex gap-2.5">
-            <MetalButton icon="camera" className="flex-1 justify-center">
+            <MetalButton
+              icon="camera"
+              className="flex-1 justify-center"
+              onClick={() => {
+                const added = onImport(wh.id)
+                flash({ title: `Загружено ${added.length} позиции со скана`, sub: `в ${wh.no}` })
+              }}
+            >
               Загрузить со скана
             </MetalButton>
-            <MossButton icon="clone" trailing="arrowUR" className="flex-1 justify-center">
+            <MossButton icon="clone" trailing="arrowUR" className="flex-1 justify-center" onClick={() => onClone(wh)}>
               Клонировать
             </MossButton>
           </div>
@@ -214,29 +213,80 @@ function WarehouseDrawer({ wh, onClose }) {
   )
 }
 
-function CloneToast({ wh, onClose }) {
-  if (!wh) return null
+function CreateModal({ open, onClose, onSave }) {
+  const { people } = useStore()
+  const [title, setTitle] = useState('')
+  const [location, setLocation] = useState('')
+  const [responsible, setResponsible] = useState(people[0]?.id || '')
+  const [appNo, setAppNo] = useState('')
   return (
-    <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4" style={{ animation: 'fade-up .4s cubic-bezier(0.32,0.72,0,1) both' }}>
-      <div className="flex items-center gap-3 rounded-full plate py-2.5 pl-3 pr-2.5 hairline">
-        <span className="grid h-9 w-9 place-items-center rounded-full glass-moss">
-          <Icon name="clone" size={16} />
-        </span>
-        <div className="text-sm">
-          <span className="font-semibold text-ink-900">Склад «{wh.title}» клонирован</span>
-          <span className="ml-1.5 text-ink-500">→ новая ячейка-копия создана</span>
-        </div>
-        <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full text-ink-400 hover:text-ink-700">
-          <Icon name="x" size={15} />
-        </button>
+    <Modal open={open} onClose={onClose} eyebrow="Складская ячейка" icon="boxes" title="Создать ячейку">
+      <div className="mt-4 grid grid-cols-1 gap-3">
+        <Field label="Название" value={title} onChange={setTitle} placeholder="Напр. Объект «Восток»" />
+        <Field label="Адрес / расположение" value={location} onChange={setLocation} placeholder="Город, улица" />
+        <Select label="Ответственный" value={responsible} onChange={setResponsible} options={people.map((p) => ({ value: p.id, label: `${p.name} · ${p.role.split('·')[0].trim()}` }))} />
+        <Field label="Договор-основание (АПП)" value={appNo} onChange={setAppNo} placeholder="АПП-2026/…" />
       </div>
-    </div>
+      <div className="mt-5 flex gap-2.5">
+        <MetalButton className="flex-1 justify-center" onClick={onClose}>
+          Отмена
+        </MetalButton>
+        <MossButton
+          icon="check"
+          trailing="arrowUR"
+          className="flex-1 justify-center"
+          onClick={() => title.trim() && onSave({ title: title.trim(), location, responsible, appNo })}
+        >
+          Создать
+        </MossButton>
+      </div>
+    </Modal>
+  )
+}
+
+function ImportModal({ open, onClose, onImport }) {
+  const { warehouses } = useStore()
+  const [wh, setWh] = useState(warehouses[0]?.id || '')
+  const [count, setCount] = useState('3')
+  return (
+    <Modal open={open} onClose={onClose} eyebrow="Загрузка со скана" icon="camera" title="Импорт номенклатуры" maxW="max-w-md">
+      <p className="mt-3 text-sm text-ink-500">
+        Имитация загрузки позиций со скана накладной/АПП с присвоением инвентарных номеров. После загрузки комплекты
+        можно отредактировать.
+      </p>
+      <div className="mt-4 grid grid-cols-1 gap-3">
+        <Select label="Склад назначения" value={wh} onChange={setWh} options={warehouses.map((w) => ({ value: w.id, label: `${w.no} · ${w.title}` }))} />
+        <Field label="Сколько позиций распознано" value={count} onChange={setCount} type="number" />
+      </div>
+      <div className="mt-5 flex gap-2.5">
+        <MetalButton className="flex-1 justify-center" onClick={onClose}>
+          Отмена
+        </MetalButton>
+        <MossButton icon="download" trailing="arrowUR" className="flex-1 justify-center" onClick={() => onImport(wh, Math.max(1, Math.min(12, Number(count) || 3)))}>
+          Загрузить
+        </MossButton>
+      </div>
+    </Modal>
   )
 }
 
 export default function Warehouses() {
-  const [open, setOpen] = useState(null)
-  const [cloned, setCloned] = useState(null)
+  const { warehouses, addWarehouse, cloneWarehouse, importScan } = useStore()
+  const [openId, setOpenId] = useState(null)
+  const [creating, setCreating] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  const flash = (t) => {
+    setToast(t)
+    setTimeout(() => setToast(null), 3600)
+  }
+  const openWh = useMemo(() => warehouses.find((w) => w.id === openId) || null, [warehouses, openId])
+
+  const doClone = (wh) => {
+    const w = cloneWarehouse(wh.id)
+    flash({ title: `Склад «${wh.title}» клонирован`, sub: `создана ячейка ${w?.no}` })
+  }
 
   return (
     <div className="space-y-6">
@@ -253,8 +303,10 @@ export default function Warehouses() {
             </p>
           </div>
           <div className="flex gap-2.5">
-            <MetalButton icon="camera">Загрузить со скана</MetalButton>
-            <MossButton icon="plus" trailing="arrowUR">
+            <MetalButton icon="camera" onClick={() => setImporting(true)}>
+              Загрузить со скана
+            </MetalButton>
+            <MossButton icon="plus" trailing="arrowUR" onClick={() => setCreating(true)}>
               Создать ячейку
             </MossButton>
           </div>
@@ -264,13 +316,42 @@ export default function Warehouses() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {warehouses.map((wh, i) => (
           <Reveal key={wh.id} delay={40 + i * 50}>
-            <WarehouseCard wh={wh} onOpen={setOpen} onClone={setCloned} />
+            <WarehouseCard wh={wh} onOpen={setOpenId} onClone={doClone} />
           </Reveal>
         ))}
       </div>
 
-      <WarehouseDrawer wh={open} onClose={() => setOpen(null)} />
-      <CloneToast wh={cloned} onClose={() => setCloned(null)} />
+      {openId && (
+        <WarehouseDrawer
+          whId={openId}
+          onClose={() => setOpenId(null)}
+          onClone={doClone}
+          onImport={(id) => importScan(id, 3)}
+          flash={flash}
+        />
+      )}
+
+      <CreateModal
+        open={creating}
+        onClose={() => setCreating(false)}
+        onSave={(data) => {
+          const w = addWarehouse(data)
+          setCreating(false)
+          flash({ title: `Ячейка ${w.no} создана`, sub: w.title })
+        }}
+      />
+
+      <ImportModal
+        open={importing}
+        onClose={() => setImporting(false)}
+        onImport={(wh, n) => {
+          const added = importScan(wh, n)
+          setImporting(false)
+          flash({ title: `Загружено ${added.length} позиций со скана`, sub: 'инв. номера присвоены' })
+        }}
+      />
+
+      <Toast open={!!toast} onClose={() => setToast(null)} title={toast?.title} sub={toast?.sub} icon="clone" />
     </div>
   )
 }

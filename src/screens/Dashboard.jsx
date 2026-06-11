@@ -1,15 +1,5 @@
-import {
-  allItems,
-  categories,
-  warehouses,
-  movements,
-  warehouseById,
-  personById,
-  warrantyState,
-  money,
-  shortDate,
-  stockCheck,
-} from '../data.js'
+import { warrantyState, money, shortDate, plural } from '../data.js'
+import { useStore } from '../store.jsx'
 import {
   Bezel,
   Reveal,
@@ -55,14 +45,16 @@ function StatTile({ icon, label, value, sub, tone = 'mute', delay = 0 }) {
 }
 
 export default function Dashboard({ go }) {
-  const live = allItems.filter((i) => i.status !== 'writtenoff')
+  const { items, categories, warehouses, movements, warehouseById, personById, stockCheck } = useStore()
+  const live = items.filter((i) => i.status !== 'writtenoff')
   const totalValue = live.reduce((s, i) => s + i.cost, 0)
   const warrantySoon = live.filter((i) => ['soon', 'expired'].includes(warrantyState(i).key)).length
   const violations = warehouses.filter((w) => stockCheck(w).some((s) => !s.ok)).length
 
   // валовые остатки по родительской номенклатуре
   const bars = categories
-    .map((c) => ({ label: c.title.split(' ')[0], value: c.items.filter((i) => i.status !== 'writtenoff').length }))
+    .map((c) => ({ label: c.title.split(' ')[0], value: live.filter((i) => i.categoryId === c.id).length }))
+    .filter((b) => b.value > 0)
     .sort((a, b) => b.value - a.value)
     .slice(0, 6)
 
@@ -95,10 +87,10 @@ export default function Dashboard({ go }) {
 
       {/* KPI bento */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile icon="package" label="Единиц на забалансе" value={live.length} sub="5 групп" delay={40} />
+        <StatTile icon="package" label="Единиц на забалансе" value={live.length} sub={`${categories.length} ${plural(categories.length, ['группа', 'группы', 'групп'])}`} delay={40} />
         <StatTile icon="ruble" label="Балансовая стоимость" value={money(totalValue).replace('₽', '₽')} tone="ok" delay={90} />
         <StatTile icon="shield" label="Гарантия истекает" value={warrantySoon} sub="≤ 30 дн." tone="warn" delay={140} />
-        <StatTile icon="alert" label="Нарушен несгораемый остаток" value={violations} sub={`${violations} склада`} tone="bad" delay={190} />
+        <StatTile icon="alert" label="Нарушен несгораемый остаток" value={violations} sub={`${violations} ${plural(violations, ['склад', 'склада', 'складов'])}`} tone="bad" delay={190} />
       </div>
 
       {/* Main bento row */}

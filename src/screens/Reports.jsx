@@ -1,28 +1,19 @@
 import { useState } from 'react'
-import {
-  categories,
-  warehouses,
-  allItems,
-  itemsInWarehouse,
-  stockCheck,
-  warrantyState,
-  warehouseById,
-  money,
-  shortDate,
-} from '../data.js'
-import { Bezel, Reveal, Eyebrow, Badge, Thumb, MetalButton, Segmented, Meter, Icon } from '../ui.jsx'
-
-const live = () => allItems.filter((i) => i.status !== 'writtenoff')
+import { warrantyState, money, shortDate } from '../data.js'
+import { useStore } from '../store.jsx'
+import { toCSV, downloadFile } from '../csv.js'
+import { Bezel, Reveal, Eyebrow, Badge, Thumb, MetalButton, Segmented, Meter, Toast, Icon } from '../ui.jsx'
 
 function GrossReport() {
+  const { categories, warehouses, items } = useStore()
+  const live = items.filter((i) => i.status !== 'writtenoff')
   const rows = categories
     .map((c) => {
-      const items = c.items.filter((i) => i.status !== 'writtenoff')
-      const byWh = warehouses
-        .map((w) => ({ wh: w, n: items.filter((i) => i.wh === w.id).length }))
-        .filter((x) => x.n > 0)
-      return { c, count: items.length, value: items.reduce((s, i) => s + i.cost, 0), byWh }
+      const list = live.filter((i) => i.categoryId === c.id)
+      const byWh = warehouses.map((w) => ({ wh: w, n: list.filter((i) => i.wh === w.id).length })).filter((x) => x.n > 0)
+      return { c, count: list.length, value: list.reduce((s, i) => s + i.cost, 0), byWh }
     })
+    .filter((r) => r.count > 0)
     .sort((a, b) => b.value - a.value)
   const maxCount = Math.max(...rows.map((r) => r.count), 1)
   const totalValue = rows.reduce((s, r) => s + r.value, 0)
@@ -54,19 +45,13 @@ function GrossReport() {
             </div>
             <div className="hidden items-center gap-1.5 md:flex">
               {r.byWh.map((x) => (
-                <span
-                  key={x.wh.id}
-                  title={x.wh.title}
-                  className="inline-flex items-center gap-1 rounded-full bg-ink-900/[0.05] px-2 py-1 font-mono text-[11px] text-ink-600"
-                >
+                <span key={x.wh.id} title={x.wh.title} className="inline-flex items-center gap-1 rounded-full bg-ink-900/[0.05] px-2 py-1 font-mono text-[11px] text-ink-600">
                   {x.wh.no}·{x.n}
                 </span>
               ))}
             </div>
             <div className="w-12 text-right font-mono text-lg font-bold text-ink-900">{r.count}</div>
-            <div className="hidden w-24 text-right font-mono text-[13px] font-semibold text-ink-700 sm:block">
-              {money(r.value)}
-            </div>
+            <div className="hidden w-24 text-right font-mono text-[13px] font-semibold text-ink-700 sm:block">{money(r.value)}</div>
           </div>
         ))}
       </div>
@@ -75,24 +60,17 @@ function GrossReport() {
 }
 
 function WarehouseReport() {
+  const { warehouses, warehouseById, itemsInWarehouse, stockCheck, categories } = useStore()
   const [whId, setWhId] = useState(warehouses[0].id)
   const wh = warehouseById(whId)
   const items = itemsInWarehouse(whId)
   const check = stockCheck(wh)
   const value = items.reduce((s, i) => s + i.cost, 0)
-
-  // группировка по категории
-  const byCat = categories
-    .map((c) => ({ c, items: items.filter((i) => i.categoryId === c.id) }))
-    .filter((x) => x.items.length > 0)
+  const byCat = categories.map((c) => ({ c, items: items.filter((i) => i.categoryId === c.id) })).filter((x) => x.items.length > 0)
 
   return (
     <div className="space-y-4">
-      <Segmented
-        options={warehouses.map((w) => ({ value: w.id, label: w.no }))}
-        value={whId}
-        onChange={setWhId}
-      />
+      <Segmented options={warehouses.map((w) => ({ value: w.id, label: w.no }))} value={whId} onChange={setWhId} />
       <Bezel>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -115,6 +93,7 @@ function WarehouseReport() {
         </div>
 
         <div className="mt-5 grid gap-2.5">
+          {byCat.length === 0 && <div className="rounded-2xl well px-4 py-6 text-center text-sm text-ink-400">Склад пуст</div>}
           {byCat.map(({ c, items }) => {
             const ms = check.find((x) => x.categoryId === c.id)
             return (
@@ -145,11 +124,12 @@ function WarehouseReport() {
 }
 
 function WarrantyReport() {
-  const items = live()
+  const { items, warehouseById } = useStore()
+  const live = items.filter((i) => i.status !== 'writtenoff')
   const buckets = {
-    expired: items.filter((i) => warrantyState(i).key === 'expired'),
-    soon: items.filter((i) => warrantyState(i).key === 'soon'),
-    ok: items.filter((i) => warrantyState(i).key === 'ok'),
+    expired: live.filter((i) => warrantyState(i).key === 'expired'),
+    soon: live.filter((i) => warrantyState(i).key === 'soon'),
+    ok: live.filter((i) => warrantyState(i).key === 'ok'),
   }
   const cards = [
     { key: 'expired', title: 'Гарантия истекла', tone: 'bad', icon: 'alert', dateColor: 'text-rose-600' },
@@ -194,7 +174,23 @@ function WarrantyReport() {
 }
 
 export default function Reports() {
+  const { items, categoryById, warehouseById } = useStore()
   const [tab, setTab] = useState('gross')
+  const [toast, setToast] = useState(null)
+
+  const exportExcel = () => {
+    const headers = ['Инв. номер', 'Номенклатура', 'Группа', 'Зав. номер', 'Штрих-код', 'Производитель', 'Склад', 'Стоимость, ₽', 'Гарантия до', 'Статус']
+    const STATUS = { in: 'В наличии', warn: 'Гарантия истекает', moved: 'Перемещён', broke: 'Дефект', writtenoff: 'Списан' }
+    const rows = items.map((it) => {
+      const c = categoryById(it.categoryId)
+      const w = warehouseById(it.wh)
+      return [it.inv, c?.title || '', c?.group || '', it.serial, it.barcode, it.maker, w?.no || '', it.cost, shortDate(it.warrantyEnd), STATUS[it.status] || it.status]
+    })
+    downloadFile('sklad-tmc.csv', toCSV(headers, rows))
+    setToast({ title: 'Выгружено в CSV/Excel', sub: `${rows.length} строк · sklad-tmc.csv` })
+    setTimeout(() => setToast(null), 3200)
+  }
+
   return (
     <div className="space-y-6">
       <Reveal>
@@ -208,7 +204,7 @@ export default function Reports() {
               Валовые остатки, выборка по конкретному складу и гарантийная аналитика по срокам обслуживания.
             </p>
           </div>
-          <MetalButton icon="download" trailing="arrowUR">
+          <MetalButton icon="download" trailing="arrowUR" onClick={exportExcel}>
             Выгрузить в Excel
           </MetalButton>
         </div>
@@ -231,6 +227,8 @@ export default function Reports() {
         {tab === 'wh' && <WarehouseReport />}
         {tab === 'warranty' && <WarrantyReport />}
       </Reveal>
+
+      <Toast open={!!toast} onClose={() => setToast(null)} title={toast?.title} sub={toast?.sub} icon="download" />
     </div>
   )
 }

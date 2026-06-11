@@ -13,7 +13,8 @@ export const people = [
 export const personById = (id) => people.find((p) => p.id === id)
 
 // Родительская номенклатура. items — конкретные единицы (инв. номер, зав. номер и т.д.)
-export const categories = [
+// Это СИД для стора: при инициализации items разворачиваются в плоский список.
+export const seedCategories = [
   {
     id: 'tv43',
     title: 'ТВ-панель 43"',
@@ -112,14 +113,7 @@ export const categories = [
   },
 ]
 
-// Плоский список всех единиц для удобства
-export const allItems = categories.flatMap((c) =>
-  c.items.map((it) => ({ ...it, categoryId: c.id, categoryTitle: c.title, emoji: c.emoji, hue: c.hue })),
-)
-
-export const categoryById = (id) => categories.find((c) => c.id === id)
-
-export const warehouses = [
+export const seedWarehouses = [
   {
     id: 'w1',
     no: 'СК-01',
@@ -178,10 +172,8 @@ export const warehouses = [
   },
 ]
 
-export const warehouseById = (id) => warehouses.find((w) => w.id === id)
-
 // Журнал перемещений ТМЦ между складами
-export const movements = [
+export const seedMovements = [
   { id: 'm1', itemInv: 'ИНВ-000503', title: 'Роутер Wi-Fi 6', from: 'w1', to: 'w3', by: 'p1', date: '2026-06-10', kind: 'move' },
   { id: 'm2', itemInv: 'ИНВ-000221', title: 'Кофемашина проф.', from: 'w1', to: 'w4', by: 'p3', date: '2026-06-09', kind: 'defect' },
   { id: 'm3', itemInv: 'ИНВ-000415', title: 'ТВ-панель 43"', from: 'w3', to: 'w2', by: 'p2', date: '2026-06-07', kind: 'move' },
@@ -190,7 +182,7 @@ export const movements = [
 ]
 
 // Акты списания / дефектовки
-export const acts = [
+export const seedActs = [
   {
     id: 'a1', no: 'СПИС-2026/014', date: '2026-06-09', wh: 'w4',
     itemInv: 'ИНВ-000221', title: 'Кофемашина проф. JURA WE8', reason: 'Неисправен ТЭН, ремонт нецелесообразен',
@@ -203,9 +195,7 @@ export const acts = [
   },
 ]
 
-// ── helpers ─────────────────────────────────────────────────────────────────
-export const itemsInWarehouse = (whId) => allItems.filter((it) => it.wh === whId && it.status !== 'writtenoff')
-
+// ── pure helpers (без стейта) ────────────────────────────────────────────────
 export const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000)
 
 export const warrantyState = (item, today = TODAY) => {
@@ -224,9 +214,14 @@ export const shortDate = (s) => {
   return `${d}.${m}.${y}`
 }
 
-// Свод несгораемого остатка по складу: эталон vs факт
-export const stockCheck = (wh) =>
-  wh.minStock.map((ms) => {
-    const fact = itemsInWarehouse(wh.id).filter((it) => it.categoryId === ms.categoryId && it.status !== 'broke').length
-    return { ...ms, fact, ok: fact >= ms.qty, gap: Math.max(0, ms.qty - fact), category: categoryById(ms.categoryId) }
-  })
+// ISO-дата (YYYY-MM-DD) для «сегодня» демо — без Date.now в рендере
+export const todayISO = () => TODAY
+
+// Русская плюрализация: plural(2, ['акт','акта','актов']) → 'акта'
+export const plural = (n, [one, few, many]) => {
+  const m10 = n % 10
+  const m100 = n % 100
+  if (m10 === 1 && m100 !== 11) return one
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few
+  return many
+}
