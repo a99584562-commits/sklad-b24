@@ -101,14 +101,14 @@ function CreateModal({ open, onClose, onCreate }) {
             onClick={() => setPicked(it.id)}
             className={`flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-left transition-all ${picked === it.id ? 'glass-moss' : 'well'}`}
           >
-            <Thumb emoji={it.emoji} hue={it.hue} size="sm" className={picked === it.id ? 'ring-2 ring-white/40' : ''} />
+            <Thumb emoji={it.emoji} hue={it.hue} size="sm" className={picked === it.id ? 'ring-2 ring-ink-900/15' : ''} />
             <div className="min-w-0 flex-1">
-              <div className={`truncate text-[13px] font-semibold ${picked === it.id ? 'text-white' : 'text-ink-900'}`}>{it.categoryTitle}</div>
-              <div className={`font-mono text-[11px] ${picked === it.id ? 'text-white/80' : 'text-ink-400'}`}>
+              <div className={`truncate text-[13px] font-semibold ${picked === it.id ? 'text-ink-900' : 'text-ink-900'}`}>{it.categoryTitle}</div>
+              <div className={`font-mono text-[11px] ${picked === it.id ? 'text-ink-900/70' : 'text-ink-400'}`}>
                 {it.inv} · {warehouseById(it.wh)?.no}
               </div>
             </div>
-            {picked === it.id && <Icon name="check" size={16} className="text-white" />}
+            {picked === it.id && <Icon name="check" size={16} className="text-ink-900" />}
           </button>
         ))}
         {defective.length === 0 && (

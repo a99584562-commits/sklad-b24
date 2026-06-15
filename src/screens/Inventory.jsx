@@ -20,8 +20,8 @@ function Ring({ value, size = 132 }) {
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="url(#mossgrad)" strokeWidth="10" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} style={{ transition: 'stroke-dashoffset .6s cubic-bezier(0.32,0.72,0,1)' }} />
       <defs>
         <linearGradient id="mossgrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#34c785" />
-          <stop offset="1" stopColor="#16855a" />
+          <stop offset="0" stopColor="#b6e84f" />
+          <stop offset="1" stopColor="#6a8a1e" />
         </linearGradient>
       </defs>
     </svg>
@@ -62,7 +62,7 @@ function CameraView({ onDecode, onError }) {
 function Scanner({ scanning, last, onScan, disabled, camera, onToggleCamera, onDecode, cameraError, onCameraError, manual, setManual, onManual }) {
   return (
     <div className="relative overflow-hidden rounded-3xl well p-1.5">
-      <div className="relative grid aspect-[4/3] place-items-center overflow-hidden rounded-[1.35rem] bg-gradient-to-b from-ink-900 to-[#0c1a14]">
+      <div className="relative grid aspect-[4/3] place-items-center overflow-hidden rounded-[1.35rem] bg-gradient-to-b from-[#23271d] to-[#14160f]">
         {camera && !cameraError ? (
           <CameraView onDecode={onDecode} onError={onCameraError} />
         ) : last ? (
@@ -86,7 +86,7 @@ function Scanner({ scanning, last, onScan, disabled, camera, onToggleCamera, onD
             <span key={cls} className={`absolute h-8 w-8 rounded-[6px] border-moss-400/80 ${cls}`} />
           ))}
         </div>
-        {scanning && !camera && <div className="pointer-events-none absolute inset-x-10 top-1/2 h-px bg-moss-400 shadow-[0_0_18px_4px_rgba(70,201,126,.7)] animate-scanline" />}
+        {scanning && !camera && <div className="pointer-events-none absolute inset-x-10 top-1/2 h-px bg-moss-400 shadow-[0_0_18px_4px_rgba(204,245,107,.8)] animate-scanline" />}
 
         <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm">
           <span className={`h-1.5 w-1.5 rounded-full ${camera && !cameraError ? 'bg-moss-400 animate-pulse' : 'bg-white/40'}`} />

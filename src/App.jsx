@@ -24,7 +24,7 @@ function Brand() {
   return (
     <div className="flex items-center gap-3">
       <span className="relative grid h-10 w-10 place-items-center rounded-2xl glass-moss">
-        <Icon name="boxes" size={20} className="text-white" />
+        <Icon name="boxes" size={20} className="text-ink-900" />
       </span>
       <div className="leading-tight">
         <div className="text-[15px] font-extrabold tracking-tight text-ink-900">СКЛАД</div>
@@ -249,7 +249,7 @@ export default function App() {
               <span className="h-1.5 w-1.5 rounded-full bg-moss-500 animate-pulse" /> синхронизация Б24
             </div>
             <div className="mt-2 text-[13px] font-semibold text-ink-900">Портал подключён</div>
-            <div className="text-[11px] text-ink-400">crm.bitrix24.ru · REST</div>
+            <div className="text-[11px] text-ink-400">25-7.pro · REST</div>
           </div>
 
           <div className="mt-auto flex items-center gap-3 rounded-2xl bg-ink-900/[0.03] p-2.5">

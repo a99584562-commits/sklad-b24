@@ -83,13 +83,13 @@ export function MossButton({ children, icon, trailing, onClick, className = '', 
       onClick={onClick}
       className={`group inline-flex items-center gap-2 rounded-full font-semibold ${ease} glass-moss active:scale-[0.98] ${sizes[size]} ${className}`}
     >
-      {icon && <Icon name={icon} size={16} className="text-white/90" />}
+      {icon && <Icon name={icon} size={16} className="text-ink-900/75" />}
       <span>{children}</span>
       {trailing && (
         <span
-          className={`-mr-1.5 ml-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 ${ease} group-hover:translate-x-0.5 group-hover:-translate-y-px`}
+          className={`-mr-1.5 ml-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-ink-900/[0.12] ${ease} group-hover:translate-x-0.5 group-hover:-translate-y-px`}
         >
-          <Icon name={trailing} size={14} className="text-white" />
+          <Icon name={trailing} size={14} className="text-ink-900" />
         </span>
       )}
     </button>

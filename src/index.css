@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Фирменный шрифт клиента 25/7 — Stolzl (self-host). Доступны Light 300 и Book 400. */
+@font-face {
+  font-family: 'Stolzl';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('./assets/fonts/Stolzl-Light.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Stolzl';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('./assets/fonts/Stolzl-Book.woff2') format('woff2');
+}
+
 :root {
   color-scheme: light;
 }
@@ -19,14 +35,14 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  color: #15171c;
+  font-family: 'Stolzl', 'Plus Jakarta Sans', system-ui, sans-serif;
+  color: #282828;
   /* Soft Structuralism: silver-grey field with diffused overhead light */
-  background-color: #e7eaef;
+  background-color: #e7ecf2;
   background-image:
     radial-gradient(120% 80% at 50% -10%, #fbfcfe 0%, rgba(251, 252, 254, 0) 46%),
-    radial-gradient(80% 60% at 88% 8%, rgba(31, 169, 113, 0.07) 0%, rgba(31, 169, 113, 0) 55%),
-    radial-gradient(70% 60% at 6% 96%, rgba(120, 134, 158, 0.12) 0%, rgba(120, 134, 158, 0) 60%);
+    radial-gradient(80% 60% at 88% 8%, rgba(204, 245, 107, 0.18) 0%, rgba(204, 245, 107, 0) 55%),
+    radial-gradient(70% 60% at 6% 96%, rgba(156, 164, 183, 0.14) 0%, rgba(156, 164, 183, 0) 60%);
   background-attachment: fixed;
 }
 
@@ -84,19 +100,19 @@ body::after {
       inset 0 0 0 1px rgba(20, 23, 28, 0.04);
   }
 
-  /* Green glass accent (the "Send" / orb tone from the reference) */
+  /* Lime glass accent — бренд 25/7 (#ccf56b). Светлый лайм → тёмный текст. */
   .glass-moss {
-    background-image: linear-gradient(180deg, #34c785 0%, #1fa971 52%, #16855a 100%);
+    background-image: linear-gradient(180deg, #d8fa88 0%, #ccf56b 50%, #b6e84f 100%);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.45),
-      inset 0 -2px 4px rgba(8, 64, 44, 0.4),
-      0 8px 22px -8px rgba(31, 169, 113, 0.6);
-    color: #fff;
+      inset 0 1px 0 rgba(255, 255, 255, 0.65),
+      inset 0 -2px 4px rgba(106, 138, 30, 0.35),
+      0 8px 22px -8px rgba(166, 224, 79, 0.7);
+    color: #282828;
   }
   .glass-moss:active {
     box-shadow:
-      inset 0 2px 6px rgba(8, 64, 44, 0.5),
-      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+      inset 0 2px 6px rgba(106, 138, 30, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.45);
   }
 
   .hairline {
