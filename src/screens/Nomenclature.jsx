@@ -217,7 +217,7 @@ function ItemDrawer({ it, onClose, onMove, onWriteOff, onPrint }) {
 
 function AddModal({ open, onClose, onSave }) {
   const { categories, warehouses } = useStore()
-  const [mode, setMode] = useState('existing')
+  const [mode, setMode] = useState(categories.length ? 'existing' : 'new')
   const [categoryId, setCategoryId] = useState(categories[0]?.id || '')
   const [title, setTitle] = useState('')
   const [group, setGroup] = useState('')
@@ -290,7 +290,15 @@ function AddModal({ open, onClose, onSave }) {
         <Field label="Производитель" value={maker} onChange={setMaker} placeholder="Samsung" />
         <Field label="Заводской номер" value={serial} onChange={setSerial} placeholder="SN-…" />
         <Field label="Закупочная стоимость, ₽" value={cost} onChange={setCost} placeholder="0" type="number" />
-        <Select label="Склад / ячейка" value={wh} onChange={setWh} options={warehouses.map((w) => ({ value: w.id, label: `${w.no} · ${w.title}` }))} />
+        <Select
+          label="Склад / ячейка"
+          value={wh}
+          onChange={setWh}
+          options={[
+            { value: '', label: warehouses.length ? '— не размещён —' : '— нет складов —' },
+            ...warehouses.map((w) => ({ value: w.id, label: `${w.no} · ${w.title}` })),
+          ]}
+        />
         <Field label="Гарантия с" value={wStart} onChange={setWStart} type="date" />
         <Field label="Гарантия по" value={wEnd} onChange={setWEnd} type="date" />
       </div>
@@ -426,13 +434,29 @@ export default function Nomenclature() {
             <CategoryCard c={c} items={list} onOpen={(it) => setSel(it.id)} defaultOpen={i === 0} />
           </Reveal>
         ))}
-        {visibleCats.length === 0 && (
+        {visibleCats.length === 0 && (q || group !== 'all') && (
           <Bezel>
             <div className="grid place-items-center py-12 text-center">
               <span className="grid h-12 w-12 place-items-center rounded-2xl well text-ink-400">
                 <Icon name="search" size={20} />
               </span>
-              <p className="mt-3 text-sm text-ink-500">Ничего не найдено по запросу «{q}»</p>
+              <p className="mt-3 text-sm text-ink-500">Ничего не найдено{q ? ` по запросу «${q}»` : ''}</p>
+            </div>
+          </Bezel>
+        )}
+        {categories.length === 0 && !q && group === 'all' && (
+          <Bezel>
+            <div className="grid place-items-center gap-3 py-14 text-center">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl well text-ink-400">
+                <Icon name="book" size={22} />
+              </span>
+              <div>
+                <p className="text-[15px] font-semibold text-ink-900">Справочник пуст</p>
+                <p className="mt-1 text-sm text-ink-500">Добавьте первую позицию номенклатуры ТМЦ</p>
+              </div>
+              <MetalButton icon="plus" trailing="arrowUR" onClick={() => setAdding(true)}>
+                Добавить позицию
+              </MetalButton>
             </div>
           </Bezel>
         )}

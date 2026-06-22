@@ -313,13 +313,30 @@ export default function Warehouses() {
         </div>
       </Reveal>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {warehouses.map((wh, i) => (
-          <Reveal key={wh.id} delay={40 + i * 50}>
-            <WarehouseCard wh={wh} onOpen={setOpenId} onClone={doClone} />
-          </Reveal>
-        ))}
-      </div>
+      {warehouses.length === 0 ? (
+        <Bezel>
+          <div className="grid place-items-center gap-3 py-14 text-center">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl well text-ink-400">
+              <Icon name="boxes" size={22} />
+            </span>
+            <div>
+              <p className="text-[15px] font-semibold text-ink-900">Складов пока нет</p>
+              <p className="mt-1 text-sm text-ink-500">Создайте первую ячейку: наполнение, договор-основание (АПП) и ответственный</p>
+            </div>
+            <MossButton icon="plus" trailing="arrowUR" onClick={() => setCreating(true)}>
+              Создать ячейку
+            </MossButton>
+          </div>
+        </Bezel>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {warehouses.map((wh, i) => (
+            <Reveal key={wh.id} delay={40 + i * 50}>
+              <WarehouseCard wh={wh} onOpen={setOpenId} onClone={doClone} />
+            </Reveal>
+          ))}
+        </div>
+      )}
 
       {openId && (
         <WarehouseDrawer

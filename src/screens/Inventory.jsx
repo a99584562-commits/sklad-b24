@@ -123,9 +123,9 @@ function Scanner({ scanning, last, onScan, disabled, camera, onToggleCamera, onD
 
 export default function Inventory({ go }) {
   const { warehouses, itemsInWarehouse, personById } = useStore()
-  const [whId, setWhId] = useState(warehouses[0].id)
-  const wh = warehouses.find((w) => w.id === whId) || warehouses[0]
-  const expected = useMemo(() => itemsInWarehouse(whId), [itemsInWarehouse, whId])
+  const [whId, setWhId] = useState(warehouses[0]?.id || '')
+  const wh = warehouses.find((w) => w.id === whId) || warehouses[0] || null
+  const expected = useMemo(() => (wh ? itemsInWarehouse(wh.id) : []), [itemsInWarehouse, wh])
 
   const [statuses, setStatuses] = useState({})
   const [scanning, setScanning] = useState(false)
@@ -207,6 +207,32 @@ export default function Inventory({ go }) {
     if (!manual.trim()) return
     handleCode(manual.trim())
     setManual('')
+  }
+
+  if (!wh) {
+    return (
+      <div className="space-y-6">
+        <Reveal>
+          <div>
+            <Eyebrow>
+              <span className="h-1.5 w-1.5 rounded-full bg-moss-500" /> Инвентаризация по QR
+            </Eyebrow>
+            <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[38px]">Сверка с эталоном</h1>
+          </div>
+        </Reveal>
+        <Bezel>
+          <div className="grid place-items-center gap-3 py-14 text-center">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl well text-ink-400">
+              <Icon name="boxes" size={22} />
+            </span>
+            <p className="text-sm text-ink-500">Сначала создайте склад, чтобы провести инвентаризацию</p>
+            <MetalButton icon="boxes" onClick={() => go('warehouses')}>
+              Перейти к складам
+            </MetalButton>
+          </div>
+        </Bezel>
+      </div>
+    )
   }
 
   return (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { people, warrantyState } from './data.js'
-import { useStore } from './store.jsx'
+import { useStore, USE_API } from './store.jsx'
 import { Avatar, Icon } from './ui.jsx'
 import Dashboard from './screens/Dashboard.jsx'
 import Nomenclature from './screens/Nomenclature.jsx'
@@ -19,6 +19,16 @@ const NAV = [
 ]
 
 const ease = 'transition-all duration-500 ease-spring'
+const IS_PROD = USE_API // боевой режим (VibeCode) vs демо (GH Pages)
+
+// Профиль для аватара из имени вошедшего пользователя Б24
+function personFromUser(name, role) {
+  const parts = (name || '').split(/\s+/).filter(Boolean)
+  const initials = parts.slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || 'Б24'
+  let h = 0
+  for (const ch of name || 'x') h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return { name: name || 'Пользователь', role: role === 'ADMIN' ? 'Администратор' : 'Сотрудник портала', initials, hue: h % 360 }
+}
 
 function Brand() {
   return (
@@ -214,7 +224,28 @@ function Notifications({ go, size = 16 }) {
 export default function App() {
   const { resetDemo } = useStore()
   const [view, setView] = useState('dashboard')
-  const me = people[1] // Марина Котова — менеджер проекта
+  const [b24, setB24] = useState(null)
+  const [user, setUser] = useState(null)
+
+  // реальный вошедший пользователь Б24 (боевой режим), иначе демо-профиль
+  const me = useMemo(() => {
+    if (!USE_API) return people[1]
+    if (user?.authenticated) return personFromUser(user.name, user.role)
+    return { name: user ? 'Гость' : 'Загрузка…', role: 'Битрикс24', initials: '—', hue: 210 }
+  }, [user])
+
+  useEffect(() => {
+    if (!USE_API) return
+    fetch('/api/b24/me')
+      .then((r) => r.json())
+      .then(setB24)
+      .catch(() => setB24({ connected: false }))
+    fetch('/api/me')
+      .then((r) => r.json())
+      .then(setUser)
+      .catch(() => setUser({ authenticated: false }))
+  }, [])
+
   const go = (v) => {
     setView(v)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -246,10 +277,10 @@ export default function App() {
           {/* mini status */}
           <div className="mt-6 rounded-2xl well p-3.5">
             <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-moss-500 animate-pulse" /> синхронизация Б24
+              <span className={`h-1.5 w-1.5 rounded-full ${b24 && !b24.connected ? 'bg-rose-500' : 'bg-moss-500 animate-pulse'}`} /> синхронизация Б24
             </div>
-            <div className="mt-2 text-[13px] font-semibold text-ink-900">Портал подключён</div>
-            <div className="text-[11px] text-ink-400">25-7.pro · REST</div>
+            <div className="mt-2 text-[13px] font-semibold text-ink-900">{b24 && !b24.connected ? 'Нет связи с порталом' : 'Портал подключён'}</div>
+            <div className="text-[11px] text-ink-400">{b24?.portal || '25-7.pro'} · REST</div>
           </div>
 
           <div className="mt-auto flex items-center gap-3 rounded-2xl bg-ink-900/[0.03] p-2.5">
@@ -278,17 +309,21 @@ export default function App() {
         <div className="mx-auto max-w-6xl px-4 pb-32 pt-4 sm:px-6 lg:px-10 lg:pt-8">
           {/* desktop utility row */}
           <div className="mb-6 hidden items-center justify-end gap-2 lg:flex">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-ink-900/[0.04] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-500 hairline">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> демо-макет
-            </span>
-            <button
-              onClick={onReset}
-              title="Сбросить демо-данные"
-              className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold text-ink-700 metal active:scale-95"
-            >
-              <Icon name="clock" size={15} className="text-ink-500" />
-              Сбросить демо
-            </button>
+            {!IS_PROD && (
+              <>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-ink-900/[0.04] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-500 hairline">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> демо-макет
+                </span>
+                <button
+                  onClick={onReset}
+                  title="Сбросить демо-данные"
+                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-semibold text-ink-700 metal active:scale-95"
+                >
+                  <Icon name="clock" size={15} className="text-ink-500" />
+                  Сбросить демо
+                </button>
+              </>
+            )}
             <Notifications go={go} size={16} />
           </div>
 

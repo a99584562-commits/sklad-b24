@@ -107,7 +107,16 @@ export default function Dashboard({ go }) {
                 Отчёты
               </MetalButton>
             </div>
-            <Sparkbars data={bars} className="mt-6" />
+            {bars.length ? (
+              <Sparkbars data={bars} className="mt-6" />
+            ) : (
+              <div className="mt-6 grid place-items-center gap-2 rounded-2xl well py-10 text-center">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl metal text-ink-400">
+                  <Icon name="package" size={18} />
+                </span>
+                <p className="text-sm text-ink-500">Пока нет ТМЦ — добавьте позиции в справочник</p>
+              </div>
+            )}
           </Bezel>
         </Reveal>
 

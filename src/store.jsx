@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react'
 import {
   seedCategories,
   seedWarehouses,
@@ -11,8 +11,14 @@ import {
 
 const STORAGE_KEY = 'sklad-b24-state-v2'
 
+// Боевой режим (деплой на VibeCode, сборка с base=/): хранение на сервере, старт БЕЗ демо-данных.
+// Демо-режим (GH Pages base=/sklad-b24/ и dev): сиды + localStorage.
+export const USE_API = import.meta.env.BASE_URL === '/'
+
+const EMPTY = { categories: [], items: [], warehouses: [], movements: [], acts: [] }
+
 // Разворачиваем сид (вложенные items) в плоский стейт
-function buildInitial() {
+function buildSeed() {
   const categories = seedCategories.map(({ items, ...c }) => c)
   const items = seedCategories.flatMap((c) => c.items.map((it) => ({ ...it, categoryId: c.id })))
   return {
@@ -24,7 +30,12 @@ function buildInitial() {
   }
 }
 
+function buildInitial() {
+  return USE_API ? { ...EMPTY } : buildSeed()
+}
+
 function loadInitial() {
+  if (USE_API) return { ...EMPTY } // реальное состояние придёт с сервера (гидратация)
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
@@ -42,6 +53,14 @@ const uid = (p) => `${p}-${Date.now().toString(36)}${(_seq++).toString(36)}`
 
 function reducer(state, action) {
   switch (action.type) {
+    case 'HYDRATE':
+      return {
+        categories: action.state.categories || [],
+        items: action.state.items || [],
+        warehouses: action.state.warehouses || [],
+        movements: action.state.movements || [],
+        acts: action.state.acts || [],
+      }
     case 'RESET':
       return buildInitial()
     case 'ADD_ITEM': {
@@ -76,8 +95,39 @@ const StoreCtx = createContext(null)
 
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadInitial)
+  const ready = useRef(!USE_API) // в demo готов сразу; в API ждём гидратацию
 
+  // Гидратация с сервера (боевой режим)
   useEffect(() => {
+    if (!USE_API) return
+    let alive = true
+    fetch('/api/state')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (alive && s) dispatch({ type: 'HYDRATE', state: s })
+      })
+      .catch(() => {})
+      .finally(() => {
+        ready.current = true
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // Сохранение состояния
+  useEffect(() => {
+    if (USE_API) {
+      if (!ready.current) return // не перезаписываем сервер пустым до гидратации
+      const t = setTimeout(() => {
+        fetch('/api/state', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(state),
+        }).catch(() => {})
+      }, 400)
+      return () => clearTimeout(t)
+    }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
     } catch {
@@ -139,7 +189,7 @@ export function StoreProvider({ children }) {
         cost: Number(cost) || 0,
         warrantyStart: warrantyStart || TODAY,
         warrantyEnd: warrantyEnd || TODAY,
-        wh: wh || state.warehouses[0].id,
+        wh: wh || state.warehouses[0]?.id || '',
         status: 'in',
         note: note || '',
       }
@@ -252,6 +302,14 @@ export function StoreProvider({ children }) {
         taskText: `Дозакупка «${c?.title || 'ТМЦ'}» взамен списанной для ${wh?.no || ''}`.trim(),
       }
       dispatch({ type: 'WRITE_OFF', itemId, act })
+      // боевой режим: ставим реальную автозадачу в Б24 (best-effort)
+      if (USE_API) {
+        fetch('/api/b24/task', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: act.taskText, description: `Акт ${act.no} · ${act.title} · ${act.reason}` }),
+        }).catch(() => {})
+      }
       return act
     }
 

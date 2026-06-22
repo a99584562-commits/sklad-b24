@@ -61,9 +61,23 @@ function GrossReport() {
 
 function WarehouseReport() {
   const { warehouses, warehouseById, itemsInWarehouse, stockCheck, categories } = useStore()
-  const [whId, setWhId] = useState(warehouses[0].id)
-  const wh = warehouseById(whId)
-  const items = itemsInWarehouse(whId)
+  const [whId, setWhId] = useState(warehouses[0]?.id || '')
+  const wh = warehouseById(whId) || warehouses[0] || null
+
+  if (!wh) {
+    return (
+      <Bezel>
+        <div className="grid place-items-center gap-2 py-12 text-center">
+          <span className="grid h-12 w-12 place-items-center rounded-2xl well text-ink-400">
+            <Icon name="boxes" size={20} />
+          </span>
+          <p className="text-sm text-ink-500">Складов пока нет — создайте склад, чтобы строить отчёт</p>
+        </div>
+      </Bezel>
+    )
+  }
+
+  const items = itemsInWarehouse(wh.id)
   const check = stockCheck(wh)
   const value = items.reduce((s, i) => s + i.cost, 0)
   const byCat = categories.map((c) => ({ c, items: items.filter((i) => i.categoryId === c.id) })).filter((x) => x.items.length > 0)
