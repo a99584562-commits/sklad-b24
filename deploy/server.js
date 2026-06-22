@@ -110,10 +110,13 @@ app.get('/api/b24/users', async (_req, res) => {
   if (!VIBE_KEY) return res.json({ users: [] })
   const r = await vibe('GET', '/v1/users?limit=200')
   const arr = Array.isArray(r.json?.data) ? r.json.data : r.json?.data?.items || []
-  const users = arr.map((u) => ({
-    id: String(u.ID || u.id),
-    name: [u.NAME || u.name, u.LAST_NAME || u.lastName].filter(Boolean).join(' ').trim() || (u.EMAIL || u.email || ('ID ' + (u.ID || u.id))),
-  }))
+  const users = arr
+    .filter((u) => u.active !== false) // только активные сотрудники
+    .map((u) => ({
+      id: String(u.id ?? u.ID),
+      name: [u.name ?? u.NAME, u.lastName ?? u.LAST_NAME].filter(Boolean).join(' ').trim() || u.email || u.EMAIL || `ID ${u.id ?? u.ID}`,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
   res.json({ users })
 })
 

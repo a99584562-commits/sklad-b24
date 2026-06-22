@@ -1,11 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react'
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import {
   seedCategories,
   seedWarehouses,
   seedMovements,
   seedActs,
   people,
-  personById,
+  avatarFor,
   TODAY,
 } from './data.js'
 
@@ -95,7 +95,17 @@ const StoreCtx = createContext(null)
 
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadInitial)
+  const [b24users, setB24users] = useState([])
   const ready = useRef(!USE_API) // в demo готов сразу; в API ждём гидратацию
+
+  // реальные сотрудники Б24 (для выбора ответственного)
+  useEffect(() => {
+    if (!USE_API) return
+    fetch('/api/b24/users')
+      .then((r) => r.json())
+      .then((d) => setB24users(Array.isArray(d.users) ? d.users : []))
+      .catch(() => {})
+  }, [])
 
   // Гидратация с сервера (боевой режим)
   useEffect(() => {
@@ -138,6 +148,12 @@ export function StoreProvider({ children }) {
   const value = useMemo(() => {
     const categoryById = (id) => state.categories.find((c) => c.id === id)
     const warehouseById = (id) => state.warehouses.find((w) => w.id === id)
+
+    // Сотрудники: в demo — демо-список; в бою — реальные пользователи Б24
+    const b24persons = b24users.map((u) => ({ id: u.id, name: u.name, role: 'Сотрудник портала', ...avatarFor(u.name) }))
+    const personById = (id) =>
+      people.find((p) => p.id === id) || b24persons.find((p) => p.id === id) || (id ? { id, name: '—', role: '', ...avatarFor('') } : null)
+    const responsibles = USE_API && b24persons.length ? b24persons : people
 
     const enrich = (it) => {
       const c = categoryById(it.categoryId)
@@ -302,12 +318,13 @@ export function StoreProvider({ children }) {
         taskText: `Дозакупка «${c?.title || 'ТМЦ'}» взамен списанной для ${wh?.no || ''}`.trim(),
       }
       dispatch({ type: 'WRITE_OFF', itemId, act })
-      // боевой режим: ставим реальную автозадачу в Б24 (best-effort)
+      // боевой режим: ставим реальную автозадачу в Б24 ответственному (best-effort)
       if (USE_API) {
+        const responsibleId = /^\d+$/.test(String(act.taskTo)) ? String(act.taskTo) : undefined // только реальный B24 id
         fetch('/api/b24/task', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: act.taskText, description: `Акт ${act.no} · ${act.title} · ${act.reason}` }),
+          body: JSON.stringify({ title: act.taskText, description: `Акт ${act.no} · ${act.title} · ${act.reason}`, responsibleId }),
         }).catch(() => {})
       }
       return act
@@ -326,6 +343,7 @@ export function StoreProvider({ children }) {
       categoryById,
       warehouseById,
       personById,
+      responsibles,
       itemsInWarehouse,
       stockCheck,
       addItem,
@@ -336,7 +354,7 @@ export function StoreProvider({ children }) {
       writeOff,
       resetDemo,
     }
-  }, [state])
+  }, [state, b24users])
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>
 }

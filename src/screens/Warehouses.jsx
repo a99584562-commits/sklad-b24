@@ -214,17 +214,26 @@ function WarehouseDrawer({ whId, onClose, onClone, onImport, flash }) {
 }
 
 function CreateModal({ open, onClose, onSave }) {
-  const { people } = useStore()
+  const { responsibles } = useStore()
   const [title, setTitle] = useState('')
   const [location, setLocation] = useState('')
-  const [responsible, setResponsible] = useState(people[0]?.id || '')
+  const [responsible, setResponsible] = useState('')
   const [appNo, setAppNo] = useState('')
   return (
     <Modal open={open} onClose={onClose} eyebrow="Складская ячейка" icon="boxes" title="Создать ячейку">
       <div className="mt-4 grid grid-cols-1 gap-3">
         <Field label="Название" value={title} onChange={setTitle} placeholder="Напр. Объект «Восток»" />
         <Field label="Адрес / расположение" value={location} onChange={setLocation} placeholder="Город, улица" />
-        <Select label="Ответственный" value={responsible} onChange={setResponsible} options={people.map((p) => ({ value: p.id, label: `${p.name} · ${p.role.split('·')[0].trim()}` }))} />
+        <Select
+          label="Ответственный"
+          value={responsible || responsibles[0]?.id || ''}
+          onChange={setResponsible}
+          options={
+            responsibles.length
+              ? responsibles.map((p) => ({ value: p.id, label: p.name }))
+              : [{ value: '', label: '— загрузка сотрудников… —' }]
+          }
+        />
         <Field label="Договор-основание (АПП)" value={appNo} onChange={setAppNo} placeholder="АПП-2026/…" />
       </div>
       <div className="mt-5 flex gap-2.5">
@@ -235,7 +244,7 @@ function CreateModal({ open, onClose, onSave }) {
           icon="check"
           trailing="arrowUR"
           className="flex-1 justify-center"
-          onClick={() => title.trim() && onSave({ title: title.trim(), location, responsible, appNo })}
+          onClick={() => title.trim() && onSave({ title: title.trim(), location, responsible: responsible || responsibles[0]?.id || '', appNo })}
         >
           Создать
         </MossButton>

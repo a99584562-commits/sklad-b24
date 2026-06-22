@@ -217,6 +217,15 @@ export const shortDate = (s) => {
 // ISO-дата (YYYY-MM-DD) для «сегодня» демо — без Date.now в рендере
 export const todayISO = () => TODAY
 
+// Инициалы + стабильный оттенок для аватара по имени
+export function avatarFor(name) {
+  const parts = (name || '').split(/\s+/).filter(Boolean)
+  const initials = parts.slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '—'
+  let h = 0
+  for (const ch of name || 'x') h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return { initials, hue: h % 360 }
+}
+
 // Русская плюрализация: plural(2, ['акт','акта','актов']) → 'акта'
 export const plural = (n, [one, few, many]) => {
   const m10 = n % 10
