@@ -35,6 +35,7 @@ const P = {
   layers: <><path d="m12 4 8 4-8 4-8-4 8-4Z" /><path d="m4 12 8 4 8-4M4 16l8 4 8-4" /></>,
   spark: <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" />,
   qr: <><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><path d="M14 14h3v3M20 14v.01M20 17v3h-3M17 20h-3" /></>,
+  printer: <><path d="M7 9V4.5h10V9" /><rect x="4" y="9" width="16" height="7.5" rx="1.5" /><path d="M7 14h10v5.5H7z" /><path d="M16.5 12h.5" /></>,
 }
 
 export default function Icon({ name, className = '', size = 18, strokeWidth = 1.5 }) {

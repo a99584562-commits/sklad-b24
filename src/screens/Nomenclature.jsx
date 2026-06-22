@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { warrantyState, money, shortDate, plural } from '../data.js'
 import { useStore } from '../store.jsx'
 import { QR, Barcode, qrPayload } from '../codes.jsx'
+import { PrintLabelModal } from '../LabelPrint.jsx'
 import {
   Bezel,
   Reveal,
@@ -121,7 +122,7 @@ function CategoryCard({ c, items, onOpen, defaultOpen }) {
   )
 }
 
-function ItemDrawer({ it, onClose, onMove, onWriteOff }) {
+function ItemDrawer({ it, onClose, onMove, onWriteOff, onPrint }) {
   const { categoryById, warehouseById } = useStore()
   if (!it) return null
   const c = categoryById(it.categoryId)
@@ -175,6 +176,10 @@ function ItemDrawer({ it, onClose, onMove, onWriteOff }) {
               <div className="mt-1 text-center font-mono text-[11px] tracking-[0.15em] text-ink-400">{it.barcode}</div>
             </div>
           </div>
+
+          <MetalButton icon="printer" className="mt-3 w-full justify-center" onClick={() => onPrint(it)}>
+            Печать этикетки
+          </MetalButton>
 
           <div className="mt-4 overflow-hidden rounded-2xl well">
             <dl className="divide-y divide-ink-900/[0.05]">
@@ -348,6 +353,7 @@ export default function Nomenclature() {
   const [sel, setSel] = useState(null)
   const [adding, setAdding] = useState(false)
   const [moving, setMoving] = useState(null)
+  const [printing, setPrinting] = useState(null)
   const [toast, setToast] = useState(null)
 
   const flash = (t) => {
@@ -358,6 +364,7 @@ export default function Nomenclature() {
   // актуальная выбранная единица (после мутаций)
   const selItem = useMemo(() => items.find((i) => i.id === sel) || null, [items, sel])
   const movingItem = useMemo(() => items.find((i) => i.id === moving) || null, [items, moving])
+  const printingItem = useMemo(() => items.find((i) => i.id === printing) || null, [items, printing])
 
   const segOptions = [{ value: 'all', label: 'Все' }, ...[...new Set(categories.map((c) => c.group))].map((g) => ({ value: g, label: g }))]
   const norm = (s) => s.toLowerCase()
@@ -435,6 +442,7 @@ export default function Nomenclature() {
         it={selItem}
         onClose={() => setSel(null)}
         onMove={(it) => setMoving(it.id)}
+        onPrint={(it) => setPrinting(it.id)}
         onWriteOff={(it) => {
           const act = writeOff(it.id)
           setSel(null)
@@ -462,6 +470,8 @@ export default function Nomenclature() {
           flash({ title: 'Единица перемещена', sub: `${it.inv} → ${warehouseById(to)?.no}` })
         }}
       />
+
+      <PrintLabelModal item={printingItem} open={!!printing} onClose={() => setPrinting(null)} />
 
       <Toast open={!!toast} onClose={() => setToast(null)} title={toast?.title} sub={toast?.sub} />
     </div>
