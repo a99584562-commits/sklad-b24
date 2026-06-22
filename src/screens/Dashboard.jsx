@@ -165,6 +165,14 @@ export default function Dashboard({ go }) {
               {movements.length} за неделю
             </Badge>
           </div>
+          {movements.length === 0 ? (
+            <div className="mt-4 flex flex-col items-center gap-2 px-5 pb-8 pt-6 text-center">
+              <span className="grid h-11 w-11 place-items-center rounded-2xl well text-ink-400">
+                <Icon name="transfer" size={18} />
+              </span>
+              <p className="text-sm text-ink-500">Перемещений пока нет — они появятся при движении ТМЦ между складами</p>
+            </div>
+          ) : (
           <div className="mt-4 divide-y divide-ink-900/[0.05]">
             {movements.map((m) => {
               const meta = MOVE_META[m.kind]
@@ -194,6 +202,7 @@ export default function Dashboard({ go }) {
               )
             })}
           </div>
+          )}
         </Bezel>
       </Reveal>
     </div>
