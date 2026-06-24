@@ -16,8 +16,10 @@ const VIBE_BASE = process.env.VIBE_BASE || 'https://vibecode.bitrix24.tech'
 const VIBE_KEY = process.env.VIBE_API_KEY || ''
 
 const EMPTY = { categories: [], items: [], warehouses: [], movements: [], acts: [] }
+const PHOTOS_DIR = path.join(DATA_DIR, 'photos')
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
+fs.mkdirSync(PHOTOS_DIR, { recursive: true })
 
 function readState() {
   try {
@@ -76,6 +78,34 @@ app.put('/api/state', (req, res) => {
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e) })
   }
+})
+
+// ── фото ТМЦ (хранятся на диске вне зоны деплоя, не в state.json) ──────────────
+const safeId = (id) => String(id).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64)
+app.put('/api/photo/:id', (req, res) => {
+  const id = safeId(req.params.id)
+  const dataUrl = (req.body && req.body.dataUrl) || ''
+  const m = dataUrl.match(/^data:image\/\w+;base64,(.+)$/)
+  if (!id || !m) return res.status(400).json({ ok: false, error: 'bad image' })
+  try {
+    fs.writeFileSync(path.join(PHOTOS_DIR, id + '.jpg'), Buffer.from(m[1], 'base64'))
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) })
+  }
+})
+app.get('/api/photo/:id', (req, res) => {
+  const f = path.join(PHOTOS_DIR, safeId(req.params.id) + '.jpg')
+  if (!fs.existsSync(f)) return res.status(404).end()
+  res.type('image/jpeg').sendFile(f)
+})
+app.delete('/api/photo/:id', (req, res) => {
+  try {
+    fs.unlinkSync(path.join(PHOTOS_DIR, safeId(req.params.id) + '.jpg'))
+  } catch {
+    /* ignore */
+  }
+  res.json({ ok: true })
 })
 
 // ── личность вошедшего пользователя (инжектируется шлюзом Black Hole) ──────────

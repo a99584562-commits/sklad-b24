@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { money, shortDate } from '../data.js'
 import { useStore } from '../store.jsx'
+import { parseApp } from '../appImport.js'
 import {
   Bezel,
   Reveal,
@@ -279,11 +280,120 @@ function ImportModal({ open, onClose, onImport }) {
   )
 }
 
+// Создание ячейки из акта приёма-передачи (.docx)
+function AppImportModal({ open, onClose, onDone }) {
+  const { importFromApp } = useStore()
+  const [parsed, setParsed] = useState(null)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const fileRef = useRef(null)
+
+  const reset = () => {
+    setParsed(null)
+    setErr('')
+    setBusy(false)
+  }
+  const pick = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setBusy(true)
+    setErr('')
+    setParsed(null)
+    try {
+      const p = await parseApp(file)
+      if (!p.items.length) throw new Error('В акте не найдена таблица оборудования')
+      setParsed(p)
+    } catch (ex) {
+      setErr(ex?.message || 'Не удалось разобрать файл')
+    }
+    setBusy(false)
+  }
+  const create = () => {
+    const r = importFromApp(parsed)
+    reset()
+    onDone(r)
+  }
+
+  // сводка по группам
+  const byGroup = {}
+  if (parsed) for (const it of parsed.items) byGroup[it.group || 'Прочее'] = (byGroup[it.group || 'Прочее'] || 0) + it.qty
+
+  return (
+    <Modal
+      open={open}
+      onClose={() => {
+        reset()
+        onClose()
+      }}
+      eyebrow="Из акта приёма-передачи"
+      icon="contract"
+      title="Создать ячейку из АПП"
+    >
+      <input ref={fileRef} type="file" accept=".docx" className="hidden" onChange={pick} />
+      {!parsed ? (
+        <div className="mt-4">
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={busy}
+            className="grid w-full place-items-center gap-2 rounded-3xl well py-10 text-center"
+          >
+            <span className="grid h-12 w-12 place-items-center rounded-2xl metal text-ink-500">
+              <Icon name="contract" size={22} />
+            </span>
+            <span className="text-sm font-semibold text-ink-900">{busy ? 'Разбираю акт…' : 'Выбрать файл акта (.docx)'}</span>
+            <span className="max-w-[280px] text-xs text-ink-400">Номер договора, апартамент и перечень оборудования заполнятся автоматически</span>
+          </button>
+          {err && <p className="mt-2 text-center text-xs text-rose-600">{err}</p>}
+        </div>
+      ) : (
+        <div className="mt-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl well p-3.5">
+              <div className="text-[11px] uppercase tracking-wider text-ink-400">Апартамент</div>
+              <div className="mt-0.5 text-lg font-bold text-ink-900">{parsed.apt || '—'}</div>
+            </div>
+            <div className="rounded-2xl well p-3.5">
+              <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-ink-400">
+                <Icon name="contract" size={12} /> Договор-основание
+              </div>
+              <div className="mt-0.5 font-mono text-[13px] font-semibold text-ink-900">{parsed.appNo || '—'}</div>
+              <div className="text-xs text-ink-500">от {shortDate(parsed.appDate)}</div>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <Badge tone="ok" icon="package">
+              {parsed.items.length} позиций · {parsed.totalQty} ед.
+            </Badge>
+          </div>
+          <div className="mt-3 max-h-44 space-y-1.5 overflow-y-auto pr-1">
+            {Object.entries(byGroup).map(([g, n]) => (
+              <div key={g} className="flex items-center justify-between rounded-xl well px-3.5 py-2 text-[13px]">
+                <span className="text-ink-700">{g}</span>
+                <span className="font-mono font-semibold text-ink-900">{n} ед.</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 flex gap-2.5">
+            <MetalButton className="flex-1 justify-center" onClick={reset}>
+              Другой файл
+            </MetalButton>
+            <MossButton icon="check" trailing="arrowUR" className="flex-1 justify-center" onClick={create}>
+              Создать ячейку
+            </MossButton>
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 export default function Warehouses() {
   const { warehouses, addWarehouse, cloneWarehouse, importScan } = useStore()
   const [openId, setOpenId] = useState(null)
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [appImport, setAppImport] = useState(false)
   const [toast, setToast] = useState(null)
 
   const flash = (t) => {
@@ -312,11 +422,11 @@ export default function Warehouses() {
             </p>
           </div>
           <div className="flex gap-2.5">
-            <MetalButton icon="camera" onClick={() => setImporting(true)}>
-              Загрузить со скана
+            <MetalButton icon="plus" onClick={() => setCreating(true)}>
+              Вручную
             </MetalButton>
-            <MossButton icon="plus" trailing="arrowUR" onClick={() => setCreating(true)}>
-              Создать ячейку
+            <MossButton icon="contract" trailing="arrowUR" onClick={() => setAppImport(true)}>
+              Создать из акта (АПП)
             </MossButton>
           </div>
         </div>
@@ -374,6 +484,16 @@ export default function Warehouses() {
           const added = importScan(wh, n)
           setImporting(false)
           flash({ title: `Загружено ${added.length} позиций со скана`, sub: 'инв. номера присвоены' })
+        }}
+      />
+
+      <AppImportModal
+        open={appImport}
+        onClose={() => setAppImport(false)}
+        onDone={(r) => {
+          setAppImport(false)
+          flash({ title: `${r.warehouse.title} создан из акта`, sub: `${r.addedItems} единиц, договор ${r.warehouse.appNo}` })
+          setOpenId(r.warehouse.id)
         }}
       />
 

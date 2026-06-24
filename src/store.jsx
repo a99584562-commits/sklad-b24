@@ -67,6 +67,15 @@ function reducer(state, action) {
       const cats = action.category ? [...state.categories, action.category] : state.categories
       return { ...state, categories: cats, items: [...state.items, action.item] }
     }
+    case 'UPDATE_ITEM':
+      return { ...state, items: state.items.map((it) => (it.id === action.itemId ? { ...it, ...action.patch } : it)) }
+    case 'IMPORT_APP':
+      return {
+        ...state,
+        categories: [...state.categories, ...action.categories],
+        warehouses: [...state.warehouses, action.warehouse],
+        items: [...state.items, ...action.items],
+      }
     case 'MOVE_ITEM': {
       const items = state.items.map((it) =>
         it.id === action.itemId ? { ...it, wh: action.toWh, status: it.status === 'broke' ? 'broke' : 'moved' } : it,
@@ -342,6 +351,74 @@ export function StoreProvider({ children }) {
       return act
     }
 
+    const updateItem = (itemId, patch) => dispatch({ type: 'UPDATE_ITEM', itemId, patch })
+
+    // эмодзи по категории акта
+    const emojiForGroup = (g) => {
+      const s = (g || '').toLowerCase()
+      if (s.includes('мебел')) return '🛋️'
+      if (s.includes('техник') || s.includes('электрон')) return '🔌'
+      if (s.includes('тв') || s.includes('звук')) return '📺'
+      if (s.includes('спальн') || s.includes('текстил')) return '🛏️'
+      if (s.includes('аксессуар') || s.includes('принадлеж')) return '🧷'
+      if (s.includes('посуд') || s.includes('кух')) return '🍽️'
+      if (s.includes('сантех') || s.includes('ванн')) return '🚿'
+      return '📦'
+    }
+
+    // авто-заполнение ячейки из акта приёма-передачи
+    const importFromApp = ({ appNo, appDate, apt, address, items }) => {
+      const byTitle = {}
+      for (const c of state.categories) byTitle[c.title.toLowerCase()] = c.id
+      const newCats = []
+      const ensureCat = (name, group) => {
+        const k = name.toLowerCase()
+        if (byTitle[k]) return byTitle[k]
+        const id = uid('cat')
+        byTitle[k] = id
+        newCats.push({ id, title: name, group: group || 'Прочее', emoji: emojiForGroup(group), warrantyMonths: 0 })
+        return id
+      }
+      const whId = uid('wh')
+      const newItems = []
+      const minByCat = {}
+      let n = maxInv()
+      for (const it of items) {
+        const cid = ensureCat(it.name, it.group)
+        minByCat[cid] = (minByCat[cid] || 0) + it.qty
+        for (let k = 0; k < it.qty; k++) {
+          n += 1
+          newItems.push({
+            id: uid('item'),
+            categoryId: cid,
+            inv: fmtInv(n),
+            serial: '—',
+            barcode: randomBarcode(n),
+            maker: '—',
+            makerPhone: '',
+            cost: 0,
+            warrantyStart: '',
+            warrantyEnd: '',
+            wh: whId,
+            status: 'in',
+            note: it.zone || '',
+          })
+        }
+      }
+      const warehouse = {
+        id: whId,
+        no: apt || nextWhNo(),
+        title: apt ? `Апартамент ${apt}` : 'Апартамент',
+        location: address || '',
+        responsible: responsibles[0]?.id || '',
+        appNo: appNo || '',
+        appDate: appDate || TODAY,
+        minStock: Object.entries(minByCat).map(([categoryId, qty]) => ({ categoryId, qty })),
+      }
+      dispatch({ type: 'IMPORT_APP', categories: newCats, warehouse, items: newItems })
+      return { warehouse, addedItems: newItems.length, addedCats: newCats.length }
+    }
+
     const resetDemo = () => dispatch({ type: 'RESET' })
 
     return {
@@ -360,10 +437,12 @@ export function StoreProvider({ children }) {
       itemsInWarehouse,
       stockCheck,
       addItem,
+      updateItem,
       moveItem,
       addWarehouse,
       cloneWarehouse,
       importScan,
+      importFromApp,
       writeOff,
       resetDemo,
     }

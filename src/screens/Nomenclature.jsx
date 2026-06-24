@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { warrantyState, money, shortDate, plural } from '../data.js'
-import { useStore } from '../store.jsx'
+import { useStore, USE_API } from '../store.jsx'
 import { QR, Barcode, qrPayload } from '../codes.jsx'
 import { PrintLabelModal } from '../LabelPrint.jsx'
 import {
@@ -122,12 +122,91 @@ function CategoryCard({ c, items, onOpen, defaultOpen }) {
   )
 }
 
+// ресайз фото до миниатюры (JPEG), чтобы не раздувать хранилище
+function fileToThumb(file, max = 560, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, max / Math.max(img.width, img.height))
+      const cw = Math.max(1, Math.round(img.width * scale))
+      const ch = Math.max(1, Math.round(img.height * scale))
+      const cv = document.createElement('canvas')
+      cv.width = cw
+      cv.height = ch
+      cv.getContext('2d').drawImage(img, 0, 0, cw, ch)
+      URL.revokeObjectURL(url)
+      resolve(cv.toDataURL('image/jpeg', quality))
+    }
+    img.onerror = (e) => {
+      URL.revokeObjectURL(url)
+      reject(e)
+    }
+    img.src = url
+  })
+}
+
 function ItemDrawer({ it, onClose, onMove, onWriteOff, onPrint }) {
-  const { categoryById, warehouseById } = useStore()
+  const { categoryById, warehouseById, updateItem } = useStore()
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({})
+  const [photoVer, setPhotoVer] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const fileRef = useRef(null)
+  const setF = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+
   if (!it) return null
   const c = categoryById(it.categoryId)
   const w = warrantyState(it)
   const wh = warehouseById(it.wh)
+  const photoUrl = it.photo ? `/api/photo/${it.id}?v=${photoVer}` : null
+
+  const startEdit = () => {
+    setForm({
+      serial: it.serial === '—' ? '' : it.serial || '',
+      maker: it.maker === '—' ? '' : it.maker || '',
+      makerPhone: it.makerPhone || '',
+      cost: it.cost || '',
+      warrantyStart: it.warrantyStart || '',
+      warrantyEnd: it.warrantyEnd || '',
+      note: it.note || '',
+    })
+    setEditing(true)
+  }
+  const save = () => {
+    updateItem(it.id, {
+      serial: form.serial?.trim() || '—',
+      maker: form.maker?.trim() || '—',
+      makerPhone: form.makerPhone?.trim() || '',
+      cost: Number(form.cost) || 0,
+      warrantyStart: form.warrantyStart || '',
+      warrantyEnd: form.warrantyEnd || '',
+      note: form.note?.trim() || '',
+    })
+    setEditing(false)
+  }
+  const onPhoto = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setBusy(true)
+    try {
+      const dataUrl = await fileToThumb(file)
+      const r = await fetch(`/api/photo/${it.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataUrl }),
+      })
+      if (r.ok) {
+        updateItem(it.id, { photo: true })
+        setPhotoVer((v) => v + 1)
+      }
+    } catch {
+      /* ignore */
+    }
+    setBusy(false)
+  }
+
   const rows = [
     { k: 'Инвентарный номер', v: it.inv, mono: true },
     { k: 'Заводской номер', v: it.serial, mono: true },
@@ -159,8 +238,34 @@ function ItemDrawer({ it, onClose, onMove, onWriteOff, onPrint }) {
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <StatusBadge status={it.status} />
             <Badge tone={WARR_TONE[w.key]} icon="shield">
-              {w.key === 'ok' ? `Гарантия до ${shortDate(it.warrantyEnd)}` : `Гарантия: ${w.label}`}
+              {it.warrantyEnd ? (w.key === 'ok' ? `Гарантия до ${shortDate(it.warrantyEnd)}` : `Гарантия: ${w.label}`) : 'Гарантия не указана'}
             </Badge>
+          </div>
+
+          {/* фото товара */}
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Фото</span>
+              {USE_API && (
+                <button onClick={() => fileRef.current?.click()} className="text-[11px] font-semibold text-moss-700 hover:text-moss-600" disabled={busy}>
+                  {busy ? 'Загрузка…' : photoUrl ? 'Заменить' : '+ добавить'}
+                </button>
+              )}
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPhoto} />
+            {photoUrl ? (
+              <button onClick={() => USE_API && fileRef.current?.click()} className="block w-full overflow-hidden rounded-3xl well">
+                <img src={photoUrl} alt="" className="h-44 w-full object-cover" />
+              </button>
+            ) : (
+              <button
+                onClick={() => USE_API && fileRef.current?.click()}
+                className="grid h-40 w-full place-items-center rounded-3xl well text-center"
+              >
+                <span className="text-5xl drop-shadow">{c?.emoji}</span>
+                {USE_API && <span className="mt-1 text-[11px] text-ink-400">Нажмите, чтобы добавить фото</span>}
+              </button>
+            )}
           </div>
 
           {/* QR + штрих-код */}
@@ -181,34 +286,66 @@ function ItemDrawer({ it, onClose, onMove, onWriteOff, onPrint }) {
             Печать этикетки
           </MetalButton>
 
-          <div className="mt-4 overflow-hidden rounded-2xl well">
-            <dl className="divide-y divide-ink-900/[0.05]">
-              {rows.map((r) => (
-                <div key={r.k} className="flex items-center justify-between gap-4 px-4 py-2.5">
-                  <dt className="text-[13px] text-ink-500">{r.k}</dt>
-                  <dd className={`text-right text-[13px] font-semibold text-ink-900 ${r.mono ? 'font-mono' : ''}`}>{r.v}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-
-          {it.note && (
-            <div className="mt-3 rounded-2xl bg-amber-400/10 p-3.5 ring-1 ring-inset ring-amber-500/20">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-600">
-                <Icon name="alert" size={13} /> Примечание / дефекты
+          {!editing ? (
+            <>
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">Реквизиты</span>
+                <button onClick={startEdit} className="inline-flex items-center gap-1 text-[11px] font-semibold text-moss-700 hover:text-moss-600">
+                  <Icon name="spark" size={12} /> Редактировать
+                </button>
               </div>
-              <p className="mt-1 text-sm text-ink-700">{it.note}</p>
-            </div>
-          )}
+              <div className="mt-1.5 overflow-hidden rounded-2xl well">
+                <dl className="divide-y divide-ink-900/[0.05]">
+                  {rows.map((r) => (
+                    <div key={r.k} className="flex items-center justify-between gap-4 px-4 py-2.5">
+                      <dt className="text-[13px] text-ink-500">{r.k}</dt>
+                      <dd className={`text-right text-[13px] font-semibold text-ink-900 ${r.mono ? 'font-mono' : ''}`}>{r.v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
 
-          <div className="mt-5 flex gap-2.5">
-            <MetalButton icon="transfer" className="flex-1 justify-center" onClick={() => onMove(it)}>
-              Переместить
-            </MetalButton>
-            <MossButton icon="writeoff" trailing="arrowUR" className="flex-1 justify-center" onClick={() => onWriteOff(it)}>
-              В акт
-            </MossButton>
-          </div>
+              {it.note && (
+                <div className="mt-3 rounded-2xl bg-amber-400/10 p-3.5 ring-1 ring-inset ring-amber-500/20">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-600">
+                    <Icon name="alert" size={13} /> Примечание / дефекты
+                  </div>
+                  <p className="mt-1 text-sm text-ink-700">{it.note}</p>
+                </div>
+              )}
+
+              <div className="mt-5 flex gap-2.5">
+                <MetalButton icon="transfer" className="flex-1 justify-center" onClick={() => onMove(it)}>
+                  Переместить
+                </MetalButton>
+                <MossButton icon="writeoff" trailing="arrowUR" className="flex-1 justify-center" onClick={() => onWriteOff(it)}>
+                  В акт
+                </MossButton>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-ink-400">Редактирование</div>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <Field label="Заводской номер" value={form.serial} onChange={(v) => setF('serial', v)} placeholder="SN-…" className="col-span-2" />
+                <Field label="Производитель" value={form.maker} onChange={(v) => setF('maker', v)} placeholder="Samsung" />
+                <Field label="Телефон" value={form.makerPhone} onChange={(v) => setF('makerPhone', v)} placeholder="8 800…" />
+                <Field label="Закупочная стоимость, ₽" value={form.cost} onChange={(v) => setF('cost', v)} type="number" />
+                <div />
+                <Field label="Гарантия с" value={form.warrantyStart} onChange={(v) => setF('warrantyStart', v)} type="date" />
+                <Field label="Гарантия по" value={form.warrantyEnd} onChange={(v) => setF('warrantyEnd', v)} type="date" />
+                <TextArea label="Примечание / дефекты" value={form.note} onChange={(v) => setF('note', v)} className="col-span-2" />
+              </div>
+              <div className="mt-5 flex gap-2.5">
+                <MetalButton className="flex-1 justify-center" onClick={() => setEditing(false)}>
+                  Отмена
+                </MetalButton>
+                <MossButton icon="check" trailing="arrowUR" className="flex-1 justify-center" onClick={save}>
+                  Сохранить
+                </MossButton>
+              </div>
+            </>
+          )}
         </div>
       </aside>
     </div>
