@@ -45,15 +45,15 @@ function StatTile({ icon, label, value, sub, tone = 'mute', delay = 0 }) {
 }
 
 export default function Dashboard({ go }) {
-  const { items, categories, warehouses, movements, warehouseById, personById, stockCheck } = useStore()
+  const { items, categories, warehouses, movements, itemsByCat, warehouseById, personById, stockCheck } = useStore()
   const live = items.filter((i) => i.status !== 'writtenoff')
   const totalValue = live.reduce((s, i) => s + i.cost, 0)
   const warrantySoon = live.filter((i) => ['soon', 'expired'].includes(warrantyState(i).key)).length
   const violations = warehouses.filter((w) => stockCheck(w).some((s) => !s.ok)).length
 
-  // валовые остатки по родительской номенклатуре
+  // валовые остатки по родительской номенклатуре (через индекс — без перебора всех единиц)
   const bars = categories
-    .map((c) => ({ label: c.title.split(' ')[0], value: live.filter((i) => i.categoryId === c.id).length }))
+    .map((c) => ({ label: c.title.split(' ')[0], value: (itemsByCat[c.id] || []).filter((i) => i.status !== 'writtenoff').length }))
     .filter((b) => b.value > 0)
     .sort((a, b) => b.value - a.value)
     .slice(0, 6)

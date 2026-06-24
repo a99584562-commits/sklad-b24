@@ -5,15 +5,17 @@ import { toCSV, downloadFile } from '../csv.js'
 import { Bezel, Reveal, Eyebrow, Badge, Thumb, MetalButton, Segmented, Meter, Toast, Icon } from '../ui.jsx'
 
 function GrossReport() {
-  const { categories, warehouses, items } = useStore()
-  const live = items.filter((i) => i.status !== 'writtenoff')
+  const { categories, warehouses, itemsByCat } = useStore()
   const rows = categories
     .map((c) => {
-      const list = live.filter((i) => i.categoryId === c.id)
-      const byWh = warehouses.map((w) => ({ wh: w, n: list.filter((i) => i.wh === w.id).length })).filter((x) => x.n > 0)
+      const list = (itemsByCat[c.id] || []).filter((i) => i.status !== 'writtenoff')
+      if (!list.length) return null
+      const whCount = {}
+      for (const i of list) whCount[i.wh] = (whCount[i.wh] || 0) + 1
+      const byWh = warehouses.map((w) => ({ wh: w, n: whCount[w.id] || 0 })).filter((x) => x.n > 0)
       return { c, count: list.length, value: list.reduce((s, i) => s + i.cost, 0), byWh }
     })
-    .filter((r) => r.count > 0)
+    .filter(Boolean)
     .sort((a, b) => b.value - a.value)
   const maxCount = Math.max(...rows.map((r) => r.count), 1)
   const totalValue = rows.reduce((s, r) => s + r.value, 0)
@@ -164,9 +166,9 @@ function WarrantyReport() {
                 <h3 className="text-sm font-bold text-ink-900">{card.title}</h3>
               </div>
             </div>
-            <div className="divide-y divide-ink-900/[0.05] border-t border-ink-900/[0.06]">
+            <div className="max-h-[60vh] divide-y divide-ink-900/[0.05] overflow-y-auto border-t border-ink-900/[0.06]">
               {list.length === 0 && <div className="px-4 py-6 text-center text-xs text-ink-400">— нет позиций —</div>}
-              {list.map((it) => (
+              {list.slice(0, 60).map((it) => (
                 <div key={it.id} className="flex items-center gap-3 px-4 py-2.5">
                   <Thumb emoji={it.emoji} hue={it.hue} size="sm" />
                   <div className="min-w-0 flex-1">
@@ -179,6 +181,7 @@ function WarrantyReport() {
                   </div>
                 </div>
               ))}
+              {list.length > 60 && <div className="px-4 py-3 text-center text-xs text-ink-400">…и ещё {list.length - 60}</div>}
             </div>
           </Bezel>
         )

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { warrantyState, money, shortDate, plural } from '../data.js'
 import { useStore } from '../store.jsx'
 import { QR, Barcode, qrPayload } from '../codes.jsx'
@@ -354,14 +354,17 @@ function MoveModal({ item, onClose, onConfirm }) {
   )
 }
 
+const PAGE = 40
+
 export default function Nomenclature() {
-  const { categories, items, addItem, moveItem, writeOff, warehouseById } = useStore()
+  const { categories, items, itemsByCat, addItem, moveItem, writeOff, warehouseById } = useStore()
   const [q, setQ] = useState('')
   const [group, setGroup] = useState('all')
   const [sel, setSel] = useState(null)
   const [adding, setAdding] = useState(false)
   const [moving, setMoving] = useState(null)
   const [printing, setPrinting] = useState(null)
+  const [limit, setLimit] = useState(PAGE)
   const [toast, setToast] = useState(null)
 
   const flash = (t) => {
@@ -377,16 +380,24 @@ export default function Nomenclature() {
   const segOptions = [{ value: 'all', label: 'Все' }, ...[...new Set(categories.map((c) => c.group))].map((g) => ({ value: g, label: g }))]
   const norm = (s) => s.toLowerCase()
 
-  const visibleCats = categories
-    .map((c) => ({ c, list: items.filter((i) => i.categoryId === c.id && i.status !== 'writtenoff') }))
-    .filter(({ c, list }) => {
-      if (group !== 'all' && c.group !== group) return false
-      if (!q) return true
-      const hay = [c.title, c.group, ...list.flatMap((i) => [i.inv, i.serial, i.maker, i.barcode])].join(' ')
-      return norm(hay).includes(norm(q))
-    })
+  const nq = norm(q)
+  const visibleCats = useMemo(
+    () =>
+      categories
+        .map((c) => ({ c, list: (itemsByCat[c.id] || []).filter((i) => i.status !== 'writtenoff') }))
+        .filter(({ c, list }) => {
+          if (group !== 'all' && c.group !== group) return false
+          if (!nq) return true
+          if (norm(c.title).includes(nq) || norm(c.group).includes(nq)) return true
+          // поиск по инв./зав./штрих-коду/производителю единиц
+          return list.some((i) => norm(`${i.inv} ${i.serial} ${i.maker} ${i.barcode}`).includes(nq))
+        }),
+    [categories, itemsByCat, group, nq],
+  )
 
-  const totalUnits = items.filter((i) => i.status !== 'writtenoff').length
+  useEffect(() => setLimit(PAGE), [nq, group])
+  const shown = visibleCats.slice(0, limit)
+  const totalUnits = useMemo(() => items.filter((i) => i.status !== 'writtenoff').length, [items])
 
   return (
     <div className="space-y-6">
@@ -429,11 +440,19 @@ export default function Nomenclature() {
       </Reveal>
 
       <div className="space-y-3">
-        {visibleCats.map(({ c, list }, i) => (
-          <Reveal key={c.id} delay={40 + i * 35}>
-            <CategoryCard c={c} items={list} onOpen={(it) => setSel(it.id)} defaultOpen={i === 0} />
+        {shown.map(({ c, list }, i) => (
+          <Reveal key={c.id} delay={Math.min(i, 8) * 35}>
+            <CategoryCard c={c} items={list} onOpen={(it) => setSel(it.id)} defaultOpen={false} />
           </Reveal>
         ))}
+        {visibleCats.length > limit && (
+          <button
+            onClick={() => setLimit((l) => l + PAGE)}
+            className="w-full rounded-2xl well py-3.5 text-sm font-semibold text-ink-700 transition-colors hover:text-ink-900"
+          >
+            Показать ещё {Math.min(PAGE, visibleCats.length - limit)} из {visibleCats.length}
+          </button>
+        )}
         {visibleCats.length === 0 && (q || group !== 'all') && (
           <Bezel>
             <div className="grid place-items-center py-12 text-center">

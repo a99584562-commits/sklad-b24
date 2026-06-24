@@ -161,15 +161,27 @@ export function StoreProvider({ children }) {
     }
     const items = state.items.map(enrich)
 
-    const itemsInWarehouse = (whId) => items.filter((it) => it.wh === whId && it.status !== 'writtenoff')
+    // Индексы для O(1)-выборок (важно на больших объёмах: тысячи единиц)
+    const itemsByCat = {}
+    const itemsByWh = {}
+    for (const it of items) {
+      ;(itemsByCat[it.categoryId] ||= []).push(it)
+      if (it.status !== 'writtenoff') (itemsByWh[it.wh] ||= []).push(it)
+    }
 
-    const stockCheck = (wh) =>
-      wh.minStock.map((ms) => {
-        const fact = itemsInWarehouse(wh.id).filter(
-          (it) => it.categoryId === ms.categoryId && it.status !== 'broke',
-        ).length
+    const itemsInWarehouse = (whId) => itemsByWh[whId] || []
+
+    const stockCheck = (wh) => {
+      // факт по категориям считаем один раз, не квадратично на каждую строку эталона
+      const factByCat = {}
+      for (const it of itemsInWarehouse(wh.id)) {
+        if (it.status !== 'broke') factByCat[it.categoryId] = (factByCat[it.categoryId] || 0) + 1
+      }
+      return wh.minStock.map((ms) => {
+        const fact = factByCat[ms.categoryId] || 0
         return { ...ms, fact, ok: fact >= ms.qty, gap: Math.max(0, ms.qty - fact), category: categoryById(ms.categoryId) }
       })
+    }
 
     const maxInv = () => {
       const nums = state.items.map((it) => parseInt(String(it.inv).replace(/\D/g, ''), 10)).filter((n) => !isNaN(n))
@@ -344,6 +356,7 @@ export function StoreProvider({ children }) {
       warehouseById,
       personById,
       responsibles,
+      itemsByCat,
       itemsInWarehouse,
       stockCheck,
       addItem,
